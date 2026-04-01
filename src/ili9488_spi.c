@@ -37,9 +37,80 @@ static const unsigned int g_gpio_bcm_pins[2] = {
 
 static int                  g_spi_fd           = -1;
 static struct gpiod_chip   *g_gpio_chip        = NULL;
-static struct gpiod_line   *g_gpio_lines[3]    = {NULL, NULL, NULL};
+static struct gpiod_line_request *g_gpio_requests[2] = {NULL, NULL};
 static bool                 g_spi_initialized  = false;
 static spi_gpio_state_t     g_gpio_states[3];
+
+static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
+                                    unsigned int bcm_pin,
+                                    spi_gpio_state_t initial_state)
+{
+    struct gpiod_line_settings *line_settings = NULL;
+    struct gpiod_line_config *line_config = NULL;
+    struct gpiod_request_config *request_config = NULL;
+    struct gpiod_line_request *line_request = NULL;
+    const unsigned int offsets[] = {bcm_pin};
+    bool ok = false;
+
+    line_settings = gpiod_line_settings_new();
+    line_config = gpiod_line_config_new();
+    request_config = gpiod_request_config_new();
+    if (line_settings == NULL || line_config == NULL || request_config == NULL) {
+        goto cleanup;
+    }
+
+    if (gpiod_line_settings_set_direction(line_settings,
+                                         GPIOD_LINE_DIRECTION_OUTPUT) < 0) {
+        goto cleanup;
+    }
+
+    if (gpiod_line_settings_set_output_value(
+            line_settings,
+            (initial_state == GPIO_STATE_HIGH)
+                ? GPIOD_LINE_VALUE_ACTIVE
+                : GPIOD_LINE_VALUE_INACTIVE) < 0) {
+        goto cleanup;
+    }
+
+    if (gpiod_line_config_add_line_settings(line_config,
+                                            offsets,
+                                            1,
+                                            line_settings) < 0) {
+        goto cleanup;
+    }
+
+    gpiod_request_config_set_consumer(request_config, "ili9488");
+
+    line_request = gpiod_chip_request_lines(g_gpio_chip,
+                                           request_config,
+                                           line_config);
+    if (line_request == NULL) {
+        goto cleanup;
+    }
+
+    g_gpio_requests[gpio_pin] = line_request;
+    g_gpio_states[gpio_pin] = initial_state;
+    ok = true;
+
+cleanup:
+    if (!ok && line_request != NULL) {
+        gpiod_line_request_release(line_request);
+    }
+
+    if (request_config != NULL) {
+        gpiod_request_config_free(request_config);
+    }
+
+    if (line_config != NULL) {
+        gpiod_line_config_free(line_config);
+    }
+
+    if (line_settings != NULL) {
+        gpiod_line_settings_free(line_settings);
+    }
+
+    return ok;
+}
 
 /* ============================================================================
  * SPI Bus Initialization & Configuration
@@ -88,6 +159,11 @@ bool spi_bus_initialize(const char *spi_device_path, uint32_t clock_speed_hz)
     return true;
 
 fail_close:
+    if (g_gpio_chip != NULL) {
+        gpiod_chip_close(g_gpio_chip);
+        g_gpio_chip = NULL;
+    }
+
     close(g_spi_fd);
     g_spi_fd = -1;
     return false;
@@ -105,6 +181,13 @@ bool spi_bus_deinitialize(void)
     }
 
     if (g_gpio_chip != NULL) {
+        for (size_t index = 0; index < 2; ++index) {
+            if (g_gpio_requests[index] != NULL) {
+                gpiod_line_request_release(g_gpio_requests[index]);
+                g_gpio_requests[index] = NULL;
+            }
+        }
+
         gpiod_chip_close(g_gpio_chip);
         g_gpio_chip = NULL;
     }
@@ -133,18 +216,16 @@ bool spi_gpio_initialize(spi_gpio_pin_t gpio_pin, spi_gpio_state_t initial_state
         return false;
     }
 
-    struct gpiod_line *line = gpiod_chip_get_line(g_gpio_chip,
-                                                   g_gpio_bcm_pins[gpio_pin]);
-    if (line == NULL) {
-        return false;
+    if (g_gpio_requests[gpio_pin] != NULL) {
+        g_gpio_states[gpio_pin] = initial_state;
+        return true;
     }
 
-    if (gpiod_line_request_output(line, "ili9488", (int)initial_state) < 0) {
+    if (!spi_gpio_request_output(gpio_pin,
+                                 g_gpio_bcm_pins[gpio_pin],
+                                 initial_state)) {
         return false;
     }
-
-    g_gpio_lines[gpio_pin] = line;
-    g_gpio_states[gpio_pin] = initial_state;
     return true;
 }
 
@@ -160,11 +241,16 @@ bool spi_gpio_set_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t state)
         return true;
     }
 
-    if (g_gpio_lines[gpio_pin] == NULL) {
+    if (g_gpio_requests[gpio_pin] == NULL) {
         return false;
     }
 
-    if (gpiod_line_set_value(g_gpio_lines[gpio_pin], (int)state) < 0) {
+    if (gpiod_line_request_set_value(
+            g_gpio_requests[gpio_pin],
+            g_gpio_bcm_pins[gpio_pin],
+            (state == GPIO_STATE_HIGH)
+                ? GPIOD_LINE_VALUE_ACTIVE
+                : GPIOD_LINE_VALUE_INACTIVE) < 0) {
         return false;
     }
 
@@ -192,9 +278,9 @@ bool spi_gpio_deinitialize(spi_gpio_pin_t gpio_pin)
         return true;
     }
 
-    if (g_gpio_lines[gpio_pin] != NULL) {
-        gpiod_line_release(g_gpio_lines[gpio_pin]);
-        g_gpio_lines[gpio_pin] = NULL;
+    if (g_gpio_requests[gpio_pin] != NULL) {
+        gpiod_line_request_release(g_gpio_requests[gpio_pin]);
+        g_gpio_requests[gpio_pin] = NULL;
     }
 
     return true;

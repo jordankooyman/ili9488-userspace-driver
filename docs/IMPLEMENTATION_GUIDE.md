@@ -495,8 +495,17 @@ ioctl(spi_fd, SPI_IOC_MESSAGE(1), &xfer);
 **In spi_gpio_initialize()**:
 ```c
 struct gpiod_chip *chip = gpiod_chip_open("/dev/gpiochip0");
-struct gpiod_line *line = gpiod_chip_get_line(chip, 25);  // GPIO_DC_SELECT
-gpiod_line_request_output(line, "ili9488_driver", GPIO_STATE_HIGH);
+struct gpiod_line_settings *settings = gpiod_line_settings_new();
+struct gpiod_line_config *line_config = gpiod_line_config_new();
+struct gpiod_request_config *request_config = gpiod_request_config_new();
+const unsigned int offsets[] = {25};  // GPIO_DC_SELECT
+
+gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+gpiod_line_settings_set_output_value(settings, GPIOD_LINE_VALUE_ACTIVE);
+gpiod_line_config_add_line_settings(line_config, offsets, 1, settings);
+gpiod_request_config_set_consumer(request_config, "ili9488_driver");
+
+struct gpiod_line_request *request = gpiod_chip_request_lines(chip, request_config, line_config);
 ```
 
 ### Arduino (ATmega, ARM Cortex-M)
