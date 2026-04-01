@@ -301,3 +301,6 @@ the baud rate to 115200. You will see each phase printed as it runs, followed by
 | Display   | MSP3521 3.5" SPI LCD, 320x480, ILI9488 driver    |
 | Interface | SPI (4-wire with CS, DC, and RST control lines)  |
 | Logic     | 3.3V                                             |
+
+## AI Disclosure
+This README.md file was generated with AI assistance, please find the chat log [here](https://claude.ai/share/db78096b-28eb-4049-a1dd-06d48e423277)
