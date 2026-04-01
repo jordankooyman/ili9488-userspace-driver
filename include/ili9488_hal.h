@@ -171,36 +171,6 @@ typedef enum {
  *
  * Reference: Datasheet Section 4 (Initialization and Power Supply)
  *           Datasheet Section 9 (Timing Specifications)
- *
- * Pseudocode:
- *   // Hardware reset sequence
- *   1. Pull RSTB low for 1 ms
- *   2. Release RSTB high
- *   3. Wait 120 ms for oscillator stabilization
- *
- *   // Soft reset and power-up
- *   4. Execute software reset (0x01)
- *   5. Wait 5 ms
- *   6. Execute sleep out (0x11)
- *   7. Wait 120 ms
- *
- *   // Configure display interface
- *   8. Set pixel format to RGB565 (0x3A with 0x05)
- *   9. Set memory access control/rotation (0x36)
- *   10. Set display mode (0x13 - optional)
- *
- *   // Configure power and timing
- *   11. Execute power control sequence (0xC0, 0xC1, 0xC5)
- *   12. Set frame rate controller (0xB1)
- *   13. Configure gamma correction (0xE0, 0xE1)
- *
- *   // Display enable
- *   14. Set column address (0x2A): 0-319
- *   15. Set row address (0x2B): 0-479
- *   16. Set pixel format again (0x3A)
- *   17. Normal mode on (0x13)
- *   18. Display on (0x29)
- *
  * @param pixel_format Target color depth (RGB565, RGB444, RGB666)
  * @param rotation Display rotation angle
  * @return true if initialization successful, false otherwise
@@ -235,11 +205,6 @@ bool hal_display_deinitialize(void);
  * Must wait at least 5 ms after reset before next command.
  *
  * Reference: Datasheet Section 8.2.1 (Software Reset - 0x01)
- *
- * Pseudocode:
- *   1. Transmit command 0x01
- *   2. Wait 5 ms for reset completion
- *
  * @param reset_scope Type of reset (currently only COMPLETE is supported)
  * @return true if reset successful, false otherwise
  */
@@ -316,15 +281,6 @@ bool hal_power_set_state(hal_power_state_t power_state);
  * Must be set before writing pixel data to GRAM.
  *
  * Reference: Datasheet Section 8.2.5 (Pixel Format Set - 0x3A)
- *
- * Pseudocode:
- *   1. Transmit command 0x3A
- *   2. Transmit parameter byte (DPI field):
- *      - 0x03 for 12 bits per pixel (4096 colors)
- *      - 0x05 for 16 bits per pixel (65536 colors, RGB565)
- *      - 0x06 for 18 bits per pixel (262144 colors)
- *   3. Parameter is stored in DPI bits [2:0] only
- *
  * @param pixel_format Color depth setting (RGB565 recommended)
  * @return true if command successful, false otherwise
  */
@@ -338,16 +294,6 @@ bool hal_pixel_format_set(hal_pixel_format_t pixel_format);
  * rearranging GRAM data.
  *
  * Reference: Datasheet Section 8.2.3 (Memory Access Control - 0x36)
- *
- * Pseudocode:
- *   1. Transmit command 0x36
- *   2. Transmit parameter with control bits:
- *      - MY [7]: Row address direction (0=top-bottom, 1=bottom-top)
- *      - MX [6]: Column address direction (0=left-right, 1=right-left)
- *      - MV [5]: Swap X/Y (0=normal, 1=transpose)
- *      - ... other bits for RGB/BGR, refresh direction
- *   3. Selected rotation pre-encodes optimal MY/MX/MV values
- *
  * @param rotation Target rotation (0°, 90°, 180°, 270°)
  * @param horizontal_flip Reverse left-right direction
  * @param vertical_flip Reverse top-bottom direction
@@ -365,14 +311,6 @@ bool hal_display_rotation_set(hal_rotation_t rotation,
  *
  * Reference: Datasheet Section 8.2.3 (Memory Access Control - 0x36)
  * RGB bit [3]: 0 for RGB mode (R first), 1 for BGR mode (B first)
- *
- * Pseudocode:
- *   1. Read current memory access control byte (0x36)
- *   2. Modify RGB bit [3]:
- *      - 0 for RGB byte order
- *      - 1 for BGR byte order
- *   3. Write back modified byte via 0x36
- *
  * @param byte_order RGB or BGR order
  * @return true if command successful, false otherwise
  */
@@ -386,7 +324,6 @@ bool hal_color_byte_order_set(hal_byte_order_t byte_order);
  *
  * Reference: Datasheet Section 8.2.3 (Memory Access Control - 0x36)
  * MV bit [5]: 0 for row addressing, 1 for column addressing
- *
  * @param transfer_mode Row-wise or column-wise addressing
  * @return true if command successful, false otherwise
  */
@@ -399,12 +336,6 @@ bool hal_transfer_mode_set(hal_transfer_mode_t transfer_mode);
  * current rotation, mirror, and byte order settings.
  *
  * Reference: Datasheet Section 8.2.3 (Memory Access Control - 0x36)
- *
- * Pseudocode:
- *   1. Transmit command 0x36
- *   2. Receive parameter byte
- *   3. Return configuration bits to caller
- *
  * @param config_byte Pointer to store current MAC register value
  * @return true if read successful, false otherwise
  */
@@ -421,14 +352,6 @@ bool hal_display_config_read(uint8_t *config_byte);
  * All subsequent pixel writes target this range.
  *
  * Reference: Datasheet Section 8.2.18 (Column Address Set - 0x2A)
- *
- * Pseudocode:
- *   1. Transmit command 0x2A
- *   2. Transmit 4-byte parameter:
- *      - Bytes [0:1]: Column start address (16-bit big-endian)
- *      - Bytes [2:3]: Column end address (16-bit big-endian)
- *   3. Both addresses are 0-based, must be < 320 for normal orientation
- *
  * @param start_column Leftmost column (0-319)
  * @param end_column Rightmost column (0-319)
  * @return true if command successful, false otherwise
@@ -442,14 +365,6 @@ bool hal_column_address_set(uint16_t start_column, uint16_t end_column);
  * All subsequent pixel writes target this range.
  *
  * Reference: Datasheet Section 8.2.19 (Page Address Set - 0x2B)
- *
- * Pseudocode:
- *   1. Transmit command 0x2B
- *   2. Transmit 4-byte parameter:
- *      - Bytes [0:1]: Page (row) start address (16-bit big-endian)
- *      - Bytes [2:3]: Page (row) end address (16-bit big-endian)
- *   3. Both addresses are 0-based, must be < 480 for normal orientation
- *
  * @param start_row Top row (0-479)
  * @param end_row Bottom row (0-479)
  * @return true if command successful, false otherwise
@@ -463,12 +378,6 @@ bool hal_row_address_set(uint16_t start_row, uint16_t end_row);
  * for a rectangular screen region.
  *
  * Reference: Datasheet Section 8.2.18-19 (Column/Page Address Set)
- *
- * Pseudocode:
- *   1. Call hal_column_address_set(x_start, x_end)
- *   2. Call hal_row_address_set(y_start, y_end)
- *   3. Return combined status
- *
  * @param x_start Leftmost column (0-319)
  * @param x_end Rightmost column (0-319)
  * @param y_start Top row (0-479)
@@ -487,11 +396,6 @@ bool hal_window_address_set(uint16_t x_start, uint16_t x_end,
  *
  * Reference: Datasheet Section 8.2.25 (Memory Write - 0x2C)
  *
- * Pseudocode:
- *   1. Transmit command 0x2C
- *   2. (No parameters required)
- *   3. Next SPI data transmissions go directly to GRAM
- *
  * Typical usage pattern:
  *   1. hal_window_address_set(0, 319, 0, 479)  // Set full screen
  *   2. hal_gram_write_start()                   // Enter GRAM write mode
@@ -509,12 +413,6 @@ bool hal_gram_write_start(void);
  *
  * Reference: Datasheet Section 8.2.27 (Memory Read - 0x2E)
  * Note: First byte read is typically status, valid pixel data follows.
- *
- * Pseudocode:
- *   1. Transmit command 0x2E
- *   2. (No parameters)
- *   3. Next SPI reads retrieve GRAM content
- *
  * @return true if command successful, false otherwise
  */
 bool hal_gram_read_start(void);
@@ -531,12 +429,6 @@ bool hal_gram_read_start(void);
  *
  * Reference: Datasheet Section 8.2.25 (Memory Write - 0x2C)
  * Data format depends on previously set pixel format (RGB565 typical).
- *
- * Pseudocode:
- *   1. Check pixel_format for current color depth
- *   2. Transmit pixel_buffer via SPI data line
- *   3. Display GRAM address auto-increments
- *
  * Example for RGB565 (16 bits per pixel):
  *   - Each pixel is 2 bytes: [R5G6][B5G3]
  *   - Write 320x480 = 307200 pixels = 614400 bytes total
@@ -577,13 +469,6 @@ bool hal_gram_read_pixels(uint8_t *pixel_buffer,
  *   2. Transmits color value repeatedly
  *
  * Reference: Datasheet Section 8.2.25 (Memory Write - 0x2C)
- *
- * Pseudocode:
- *   1. Call hal_window_address_set(x1, x2, y1, y2)
- *   2. Call hal_gram_write_start()
- *   3. Repeat transmission of color value (pixel_count) times
- *   4. Return status
- *
  * @param x_start Leftmost column
  * @param x_end Rightmost column
  * @param y_start Top row
@@ -606,13 +491,6 @@ bool hal_fill_rectangle_solid(uint16_t x_start, uint16_t x_end,
  * Critical for display contrast, brightness, and power efficiency.
  *
  * Reference: Datasheet Section 8.2.13 (Power Control 1 - 0xC0)
- *
- * Pseudocode:
- *   1. Transmit command 0xC0
- *   2. Transmit parameter: GVDD voltage (3 bits, 0x00-0x1F)
- *      Register value = (decimal 3.0 to 4.8V mapped to 0x00-0x2C)
- *   3. Typical value: 0x17 = approximately 4.0V
- *
  * @param gvdd_voltage Voltage level (0x00-0x2C, represents 3.0V-4.8V)
  * @return true if command successful, false otherwise
  */
@@ -625,7 +503,6 @@ bool hal_power_gvdd_set(uint8_t gvdd_voltage);
  * Affects display power consumption and performance.
  *
  * Reference: Datasheet Section 8.2.14 (Power Control 2 - 0xC1)
- *
  * @param vci_voltage Voltage level code
  * @return true if command successful, false otherwise
  */
@@ -638,14 +515,6 @@ bool hal_power_vci_set(uint8_t vci_voltage);
  * pixel drive levels and image quality.
  *
  * Reference: Datasheet Section 8.2.15 (Power Control 3 - 0xC5)
- *
- * Pseudocode:
- *   1. Transmit command 0xC5
- *   2. Transmit up to 2 parameter bytes:
- *      - VGH (positive gate voltage)
- *      - VGL (negative gate voltage)
- *   3. Typical: VGH=0x0A (16V), VGL=-0x0A (-10V)
- *
  * @param vgh_voltage Positive gate voltage
  * @param vgl_voltage Negative gate voltage
  * @return true if command successful, false otherwise
@@ -659,7 +528,6 @@ bool hal_power_vgh_vgl_set(uint8_t vgh_voltage, uint8_t vgl_voltage);
  * Affects contrast and gray levels.
  *
  * Reference: Datasheet Section 8.2.17 (VCOM Control - 0xBB)
- *
  * @param vcomh_voltage VCOM voltage code
  * @return true if command successful, false otherwise
  */
@@ -676,15 +544,6 @@ bool hal_power_vcomh_set(uint8_t vcomh_voltage);
  * Typical value: 60 Hz for smooth animation and low flicker.
  *
  * Reference: Datasheet Section 8.2.12 (Frame Rate Control - 0xB1)
- *
- * Pseudocode:
- *   1. Transmit command 0xB1
- *   2. Transmit parameter: frame rate control field
- *      - Bits [4:0]: Divisor for pixel clock
- *      - Output Hz = fOSC / (divisor * pixel_count)
- *      - Typical: 0x18 = 60 Hz
- *   3. Return status
- *
  * @param frame_rate_code Frame rate control code (typically 0x18 = 60 Hz)
  * @return true if command successful, false otherwise
  */
@@ -756,15 +615,6 @@ bool hal_entry_mode_set(uint8_t entry_mode_code);
  * Gamma corrects pixel values for accurate color rendering.
  *
  * Reference: Datasheet Section 8.2.26 (Gamma Set - 0x26)
- *
- * Pseudocode:
- *   1. Transmit command 0x26
- *   2. Transmit parameter:
- *      - 0x01 for Gamma 1
- *      - 0x02 for Gamma 2
- *      - 0x04 for Gamma 3 (recommended)
- *      - 0x08 for Gamma 4
- *
  * @param gamma_curve Gamma curve selection (1, 2, 3, or 4)
  * @return true if command successful, false otherwise
  */
@@ -777,14 +627,6 @@ bool hal_gamma_curve_select(hal_gamma_curve_t gamma_curve);
  * color correction. Each defines 15-level gamma curve.
  *
  * Reference: Datasheet Section 8.2.27-28 (Positive/Negative Gamma - 0xE0/0xE1)
- *
- * Pseudocode:
- *   1. Transmit command 0xE0 (positive gamma)
- *   2. Transmit 15 bytes of gamma values
- *   3. Transmit command 0xE1 (negative gamma)
- *   4. Transmit 15 bytes of gamma values
- *   5. Return status
- *
  * Gamma values map gray levels [0-255] to output intensities.
  * Typical table: [0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, 0x4E, 0xF1,
  *                 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00]
@@ -807,14 +649,6 @@ bool hal_gamma_curve_program(const uint8_t *pos_gamma_table,
  * Useful for verifying hardware connectivity.
  *
  * Reference: Datasheet Section 8.2.33 (Read ID4 - 0xD3)
- *
- * Pseudocode:
- *   1. Transmit command 0xD3
- *   2. Receive 4 bytes:
- *      - Byte 1: Dummy/Status
- *      - Bytes 2-4: ID code (should be 0x009488)
- *   3. Return ID value
- *
  * @param id_code Pointer to store 3-byte ID code
  * @return true if read successful, false otherwise
  */
@@ -827,14 +661,6 @@ bool hal_display_id_read(uint32_t *id_code);
  * Useful for status monitoring and debugging.
  *
  * Reference: Datasheet Section 8.2.29 (Read Power Mode - 0x0A)
- *
- * Pseudocode:
- *   1. Transmit command 0x0A
- *   2. Receive 2 bytes:
- *      - Byte 1: Dummy/Status
- *      - Byte 2: Power mode register
- *   3. Extract relevant status bits
- *
  * @param power_mode Pointer to store power mode byte
  * @return true if read successful, false otherwise
  */
@@ -904,12 +730,6 @@ bool hal_interface_mode_set(uint8_t rim_code, uint8_t dim_code);
  *
  * Reference: Datasheet Section 8.2.8 (Partial Mode On - 0x12)
  *           Datasheet Section 8.2.20-21 (Partial Area / Scroll Area)
- *
- * Pseudocode:
- *   1. Transmit command 0x12 (or 0x30 for partial area definition)
- *   2. Transmit address window for partial region
- *   3. Only pixels in this region are updated; outside area is blank
- *
  * @param partial_area_enabled true to enable partial mode
  * @return true if command successful, false otherwise
  */
@@ -922,15 +742,6 @@ bool hal_partial_mode_set(bool partial_area_enabled);
  * operations. Pixels within TFA/BFA scroll; others fixed.
  *
  * Reference: Datasheet Section 8.2.21 (Vertical Scrolling Definition - 0x33)
- *
- * Pseudocode:
- *   1. Transmit command 0x33
- *   2. Transmit 6 parameters:
- *      - TFA (Top Fixed Area): rows fixed at top [0 : TFA-1]
- *      - VSA (Vertical Scroll Area): rows to scroll [TFA : TFA+VSA-1]
- *      - BFA (Bottom Fixed Area): rows fixed at bottom [TFA+VSA : 479]
- *   3. Later, VSP (0x36) offsets VSA rows
- *
  * @param top_fixed_lines Rows fixed at top
  * @param scroll_area_lines Rows in scroll region
  * @param bottom_fixed_lines Rows fixed at bottom
