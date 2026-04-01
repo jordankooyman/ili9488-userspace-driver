@@ -352,25 +352,49 @@ bool hal_fill_rectangle_solid(uint16_t x_start, uint16_t x_end,
 {
     if (!hal_window_address_set(x_start, x_end, y_start, y_end)) return false;
     if (!hal_gram_write_start()) return false;
+    spi_delay_ms(1);
 
     uint32_t width  = (uint32_t)(x_end - x_start) + 1;
     uint32_t height = (uint32_t)(y_end - y_start) + 1;
 
-    uint8_t color_hi = (uint8_t)((color_rgb565 >> 8) & 0xFF);
-    uint8_t color_lo = (uint8_t)(color_rgb565 & 0xFF);
+    size_t bytes_per_pixel;
+    if (g_current_pixel_format == PIXEL_FORMAT_16BIT) {
+        bytes_per_pixel = 2;
+    } else if (g_current_pixel_format == PIXEL_FORMAT_18BIT) {
+        bytes_per_pixel = 3;
+    } else {
+        return false;
+    }
 
-    /* Build a single row buffer (max 320 px × 2 bytes = 640 bytes) and
-     * send it once per row — 480 transactions instead of 153,600. */
-    uint8_t row_buf[320 * 2];
+    if (width > 320U) return false;
+
+    /* Build one scanline and reuse it for each row transfer. */
+    uint8_t row_buf[320 * 3];
     uint32_t i;
-    for (i = 0; i < width && i < 320U; i++) {
-        row_buf[i * 2]     = color_hi;
-        row_buf[i * 2 + 1] = color_lo;
+    if (bytes_per_pixel == 2) {
+        uint8_t color_hi = (uint8_t)((color_rgb565 >> 8) & 0xFF);
+        uint8_t color_lo = (uint8_t)(color_rgb565 & 0xFF);
+
+        for (i = 0; i < width; i++) {
+            row_buf[i * 2]     = color_hi;
+            row_buf[i * 2 + 1] = color_lo;
+        }
+    } else {
+        /* Expand RGB565 to 8-bit channels for 18-bit (3-byte) writes. */
+        uint8_t r8 = (uint8_t)((((color_rgb565 >> 11) & 0x1F) << 3) | (((color_rgb565 >> 11) & 0x1F) >> 2));
+        uint8_t g8 = (uint8_t)((((color_rgb565 >> 5) & 0x3F) << 2) | (((color_rgb565 >> 5) & 0x3F) >> 4));
+        uint8_t b8 = (uint8_t)(((color_rgb565 & 0x1F) << 3) | ((color_rgb565 & 0x1F) >> 2));
+
+        for (i = 0; i < width; i++) {
+            row_buf[i * 3]     = r8;
+            row_buf[i * 3 + 1] = g8;
+            row_buf[i * 3 + 2] = b8;
+        }
     }
 
     uint32_t row;
     for (row = 0; row < height; row++) {
-        if (!spi_transmit_bulkdata(row_buf, width * 2)) return false;
+        if (!spi_transmit_bulkdata(row_buf, width * bytes_per_pixel)) return false;
     }
 
     return true;

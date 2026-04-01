@@ -18,6 +18,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
 #include <sys/ioctl.h>
 #include <linux/spi/spidev.h>
 #include <gpiod.h>
@@ -25,6 +27,8 @@
 
 /* Maximum bytes per spidev ioctl transfer (kernel default buffer size) */
 #define SPI_MAX_TRANSFER_BYTES 4096U
+#define SPI_DC_SETTLE_US       10U
+#define SPI_WRITE_CLOCK_HZ     10000000U
 
 static const unsigned int g_gpio_bcm_pins[2] = {
     ILI9488_GPIO_RESET_BCM,
@@ -41,6 +45,12 @@ static struct gpiod_line_request *g_gpio_requests[2] = {NULL, NULL};
 static bool                 g_spi_initialized  = false;
 static spi_gpio_state_t     g_gpio_states[3];
 
+static void spi_log_errno(const char *context)
+{
+    fprintf(stderr, "[ili9488_spi] %s failed: %s (errno=%d)\n",
+            context, strerror(errno), errno);
+}
+
 static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
                                     unsigned int bcm_pin,
                                     spi_gpio_state_t initial_state)
@@ -56,11 +66,14 @@ static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
     line_config = gpiod_line_config_new();
     request_config = gpiod_request_config_new();
     if (line_settings == NULL || line_config == NULL || request_config == NULL) {
+        fprintf(stderr, "[ili9488_spi] GPIO request setup allocation failed for BCM %u\n",
+                bcm_pin);
         goto cleanup;
     }
 
     if (gpiod_line_settings_set_direction(line_settings,
                                          GPIOD_LINE_DIRECTION_OUTPUT) < 0) {
+        spi_log_errno("gpiod_line_settings_set_direction");
         goto cleanup;
     }
 
@@ -69,6 +82,7 @@ static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
             (initial_state == GPIO_STATE_HIGH)
                 ? GPIOD_LINE_VALUE_ACTIVE
                 : GPIOD_LINE_VALUE_INACTIVE) < 0) {
+        spi_log_errno("gpiod_line_settings_set_output_value");
         goto cleanup;
     }
 
@@ -76,6 +90,7 @@ static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
                                             offsets,
                                             1,
                                             line_settings) < 0) {
+        spi_log_errno("gpiod_line_config_add_line_settings");
         goto cleanup;
     }
 
@@ -85,6 +100,7 @@ static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
                                            request_config,
                                            line_config);
     if (line_request == NULL) {
+        spi_log_errno("gpiod_chip_request_lines");
         goto cleanup;
     }
 
@@ -129,29 +145,34 @@ bool spi_bus_initialize(const char *spi_device_path, uint32_t clock_speed_hz)
 
     g_spi_fd = open(spi_device_path, O_RDWR);
     if (g_spi_fd < 0) {
+        spi_log_errno("open(spi_device_path)");
         return false;
     }
 
     /* SPI Mode 0: CPOL=0, CPHA=0 */
     uint8_t mode = SPI_MODE_0;
     if (ioctl(g_spi_fd, SPI_IOC_WR_MODE, &mode) < 0) {
+        spi_log_errno("ioctl(SPI_IOC_WR_MODE)");
         goto fail_close;
     }
 
     /* 8 bits per word */
     uint8_t bits = 8;
     if (ioctl(g_spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0) {
+        spi_log_errno("ioctl(SPI_IOC_WR_BITS_PER_WORD)");
         goto fail_close;
     }
 
     /* Set maximum clock frequency */
     if (ioctl(g_spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &clock_speed_hz) < 0) {
+        spi_log_errno("ioctl(SPI_IOC_WR_MAX_SPEED_HZ)");
         goto fail_close;
     }
 
     /* Open GPIO chip for RESET and D/C lines */
     g_gpio_chip = gpiod_chip_open(ILI9488_GPIO_CHIP_PATH);
     if (g_gpio_chip == NULL) {
+        spi_log_errno("gpiod_chip_open");
         goto fail_close;
     }
 
@@ -231,6 +252,9 @@ bool spi_gpio_initialize(spi_gpio_pin_t gpio_pin, spi_gpio_state_t initial_state
 
 bool spi_gpio_set_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t state)
 {
+    int rc;
+    enum gpiod_line_value requested_value;
+
     if (gpio_pin >= 3) {
         return false;
     }
@@ -242,16 +266,39 @@ bool spi_gpio_set_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t state)
     }
 
     if (g_gpio_requests[gpio_pin] == NULL) {
+        fprintf(stderr, "[ili9488_spi] GPIO pin %d not initialized\n", (int)gpio_pin);
         return false;
     }
 
-    if (gpiod_line_request_set_value(
+    requested_value = (state == GPIO_STATE_HIGH)
+        ? GPIOD_LINE_VALUE_ACTIVE
+        : GPIOD_LINE_VALUE_INACTIVE;
+
+    rc = gpiod_line_request_set_value(
+        g_gpio_requests[gpio_pin],
+        g_gpio_bcm_pins[gpio_pin],
+        requested_value);
+
+    if (rc < 0) {
+        /* Some setups expose single-line requests at offset 0 only. */
+        rc = gpiod_line_request_set_value(
             g_gpio_requests[gpio_pin],
-            g_gpio_bcm_pins[gpio_pin],
-            (state == GPIO_STATE_HIGH)
-                ? GPIOD_LINE_VALUE_ACTIVE
-                : GPIOD_LINE_VALUE_INACTIVE) < 0) {
-        return false;
+            0,
+            requested_value);
+
+        if (rc < 0) {
+            fprintf(stderr,
+                    "[ili9488_spi] Failed to set GPIO pin %d (BCM %u) state %d\n",
+                    (int)gpio_pin,
+                    g_gpio_bcm_pins[gpio_pin],
+                    (int)state);
+            spi_log_errno("gpiod_line_request_set_value");
+            return false;
+        }
+
+        fprintf(stderr,
+                "[ili9488_spi] Warning: GPIO pin %d accepted request-local offset 0 fallback\n",
+                (int)gpio_pin);
     }
 
     g_gpio_states[gpio_pin] = state;
@@ -298,16 +345,27 @@ bool spi_transmit_command(uint8_t command_byte)
 
     /* D/C = LOW selects command register — Datasheet Section 4.2.1 */
     if (!spi_gpio_set_state(GPIO_DC_SELECT, GPIO_STATE_LOW)) {
+        fprintf(stderr, "[ili9488_spi] Failed to set D/C LOW for command 0x%02X\n",
+                command_byte);
         return false;
     }
+
+    usleep(SPI_DC_SETTLE_US);
 
     struct spi_ioc_transfer xfer;
     memset(&xfer, 0, sizeof(xfer));
     xfer.tx_buf      = (unsigned long)&command_byte;
     xfer.len         = 1;
+    xfer.speed_hz    = SPI_WRITE_CLOCK_HZ;
     xfer.bits_per_word = 8;
 
-    return ioctl(g_spi_fd, SPI_IOC_MESSAGE(1), &xfer) >= 0;
+    if (ioctl(g_spi_fd, SPI_IOC_MESSAGE(1), &xfer) < 0) {
+        fprintf(stderr, "[ili9488_spi] SPI command transfer failed: 0x%02X\n", command_byte);
+        spi_log_errno("ioctl(SPI_IOC_MESSAGE command)");
+        return false;
+    }
+
+    return true;
 }
 
 bool spi_transmit_data(const uint8_t *data_buffer, size_t byte_count)
@@ -322,8 +380,12 @@ bool spi_transmit_data(const uint8_t *data_buffer, size_t byte_count)
 
     /* D/C = HIGH selects data/parameter register — Datasheet Section 4.2.1 */
     if (!spi_gpio_set_state(GPIO_DC_SELECT, GPIO_STATE_HIGH)) {
+        fprintf(stderr, "[ili9488_spi] Failed to set D/C HIGH for data transfer (%zu bytes)\n",
+                byte_count);
         return false;
     }
+
+    usleep(SPI_DC_SETTLE_US);
 
     /* Split into chunks to respect spidev kernel buffer limit */
     const uint8_t *ptr       = data_buffer;
@@ -337,9 +399,15 @@ bool spi_transmit_data(const uint8_t *data_buffer, size_t byte_count)
         memset(&xfer, 0, sizeof(xfer));
         xfer.tx_buf        = (unsigned long)ptr;
         xfer.len           = (uint32_t)chunk;
+        xfer.speed_hz      = SPI_WRITE_CLOCK_HZ;
         xfer.bits_per_word = 8;
 
         if (ioctl(g_spi_fd, SPI_IOC_MESSAGE(1), &xfer) < 0) {
+            fprintf(stderr,
+                    "[ili9488_spi] SPI data transfer failed (chunk=%zu, remaining=%zu)\n",
+                    chunk,
+                    remaining);
+            spi_log_errno("ioctl(SPI_IOC_MESSAGE data)");
             return false;
         }
 
@@ -362,8 +430,12 @@ bool spi_receive_data(uint8_t *data_buffer, size_t byte_count)
 
     /* D/C = HIGH for parameter read — Datasheet Section 4.2.2 */
     if (!spi_gpio_set_state(GPIO_DC_SELECT, GPIO_STATE_HIGH)) {
+        fprintf(stderr, "[ili9488_spi] Failed to set D/C HIGH for read (%zu bytes)\n",
+                byte_count);
         return false;
     }
+
+    usleep(SPI_DC_SETTLE_US);
 
     /* SPI is full-duplex: transmit dummy bytes to clock data in.
      * Read clock is capped at 5 MHz — Datasheet Section 4.2 */
@@ -381,6 +453,9 @@ bool spi_receive_data(uint8_t *data_buffer, size_t byte_count)
     xfer.bits_per_word = 8;
 
     bool ok = ioctl(g_spi_fd, SPI_IOC_MESSAGE(1), &xfer) >= 0;
+    if (!ok) {
+        spi_log_errno("ioctl(SPI_IOC_MESSAGE read)");
+    }
 
     free(tx_dummy);
     return ok;

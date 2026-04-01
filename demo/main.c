@@ -54,7 +54,7 @@ int main(void)
 
     printf("GPIO and SPI ready\n");
 
-    if (!hal_display_initialize(PIXEL_FORMAT_16BIT, ROTATION_0_NORMAL)) {
+    if (!hal_display_initialize(PIXEL_FORMAT_18BIT, ROTATION_0_NORMAL)) {
         fprintf(stderr, "Error: display initialisation failed\n");
         spi_gpio_deinitialize(GPIO_DC_SELECT);
         spi_gpio_deinitialize(GPIO_RESET);
@@ -84,9 +84,15 @@ int main(void)
         int i;
         for (i = 0; i < n; i++) {
             printf("  %s\n", colors[i].name);
-            hal_fill_rectangle_solid(0, (uint16_t)(DISPLAY_WIDTH  - 1),
-                                     0, (uint16_t)(DISPLAY_HEIGHT - 1),
-                                     colors[i].color);
+            if (!hal_fill_rectangle_solid(0, (uint16_t)(DISPLAY_WIDTH - 1),
+                                          0, (uint16_t)(DISPLAY_HEIGHT - 1),
+                                          colors[i].color)) {
+                fprintf(stderr, "Error: fill failed while drawing %s\n", colors[i].name);
+                spi_gpio_deinitialize(GPIO_DC_SELECT);
+                spi_gpio_deinitialize(GPIO_RESET);
+                spi_bus_deinitialize();
+                return EXIT_FAILURE;
+            }
             spi_delay_ms(COLOR_HOLD_MS);
         }
     }
