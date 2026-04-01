@@ -8,7 +8,8 @@
  * from display logic.
  *
  * All functions map directly to ILI9488 datasheet command sections.
- * References: ILI9488 Datasheet, Section 8 (Command Set)
+ * References: ILI9488 Datasheet, Section 5 (Command Description)
+ * Working SPI behavior is cross-checked against TFT_eSPI's ILI9488 driver.
  */
 
 #ifndef ILI9488_HAL_H
@@ -63,10 +64,10 @@ typedef enum {
  * Controls how framebuffer data is mapped to display output.
  */
 typedef enum {
-    ROTATION_0_NORMAL = 0x00,      /**< 0°: Portrait (default), X→right, Y→down */
-    ROTATION_90_CLOCKWISE = 0x60,  /**< 90°: X→down, Y→left */
-    ROTATION_180_INVERSE = 0xC0,   /**< 180°: Landscape inverted */
-    ROTATION_270_COUNTERCLOKWISE = 0xA0 /**< 270°: X→up, Y→right */
+    ROTATION_0_NORMAL = 0x48,      /**< TFT_eSPI portrait: MX | BGR */
+    ROTATION_90_CLOCKWISE = 0x28,  /**< TFT_eSPI landscape: MV | BGR */
+    ROTATION_180_INVERSE = 0x88,   /**< TFT_eSPI inverted portrait: MY | BGR */
+    ROTATION_270_COUNTERCLOKWISE = 0xE8 /**< TFT_eSPI inverted landscape: MX | MY | MV | BGR */
 } hal_rotation_t;
 
 /**
@@ -94,7 +95,7 @@ typedef enum {
 /**
  * @brief Display interface pixel format mode
  *
- * Reference: Datasheet Section 8.2.4 (Display Mode Set - 0x13)
+ * Reference: Datasheet Section 5.2.30 (Memory Access Control - 0x36)
  * Controls whether pixels are transmitted as RGB or BGR order.
  */
 typedef enum {
@@ -692,15 +693,57 @@ bool hal_frame_rate_set(uint8_t frame_rate_code);
 /**
  * @brief Configure oscillator frequency
  *
- * Sets the internal clock frequency for the display controller.
- * Affects timing of all internal operations.
+ * Sets the Interface Mode Control register.
+ * TFT_eSPI's working ILI9488 init sequence programs this with 0x00.
  *
- * Reference: Datasheet Section 8.2.11 (Oscillator Control - 0xB0)
+ * Reference: Datasheet Section 5.3.1 (Interface Mode Control - 0xB0)
  *
- * @param osc_control_code Oscillator configuration code
+ * @param osc_control_code Interface mode configuration code
  * @return true if command successful, false otherwise
  */
 bool hal_oscillator_frequency_set(uint8_t osc_control_code);
+
+/**
+ * @brief Configure display inversion control
+ *
+ * Programs the Display Inversion Control register used by TFT_eSPI's
+ * working ILI9488 startup path.
+ *
+ * Reference: Datasheet Section 5.3.5 (Display Inversion Control - 0xB4)
+ *
+ * @param inversion_control_code Inversion control parameter byte
+ * @return true if command successful, false otherwise
+ */
+bool hal_display_inversion_control_set(uint8_t inversion_control_code);
+
+/**
+ * @brief Configure display function control
+ *
+ * Programs the Display Function Control register used during the validated
+ * TFT_eSPI initialization path.
+ *
+ * Reference: Datasheet Section 5.3.7 (Display Function Control - 0xB6)
+ *
+ * @param parameter1 First control byte
+ * @param parameter2 Second control byte
+ * @param parameter3 Third control byte
+ * @return true if command successful, false otherwise
+ */
+bool hal_display_function_control_set(uint8_t parameter1,
+                                      uint8_t parameter2,
+                                      uint8_t parameter3);
+
+/**
+ * @brief Configure entry mode set
+ *
+ * Programs the Entry Mode Set register used by the TFT_eSPI ILI9488 init.
+ *
+ * Reference: Datasheet Section 5.3.8 (Entry Mode Set - 0xB7)
+ *
+ * @param entry_mode_code Entry mode parameter byte
+ * @return true if command successful, false otherwise
+ */
+bool hal_entry_mode_set(uint8_t entry_mode_code);
 
 /* ============================================================================
  * Gamma Correction
@@ -979,12 +1022,13 @@ bool hal_interface_control_set(bool wemode_enabled);
 bool hal_ram_protection_set(bool protection_enabled, uint8_t key_code);
 
 /**
- * @brief Configure GPIO pins (if ILI9488 variant supports it)
+ * @brief Configure vendor-specific adjustment bytes
  *
- * Some ILI9488 variants include programmable GPIO outputs.
- * This configures their behavior (pulled not available on all chips).
+ * This helper keeps the vendor-specific parameter sequence isolated so it can
+ * be swapped for a module-specific implementation without changing the HAL.
  *
- * Reference: Datasheet Section 8.2.34 (GPIO Configuration - 0xF7)
+ * Reference: Verified via the TFT_eSPI ILI9488 init path rather than the
+ * standard command table excerpt.
  *
  * @param gpio_mask Bitmask of GPIO pins to configure
  * @param gpio_config Configuration values for enabled pins
