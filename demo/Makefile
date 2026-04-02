@@ -1,5 +1,6 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -O2 -I../include
+EXTRA_INCLUDES = -I../include
+CFLAGS += -Wall -Wextra -O2 $(EXTRA_INCLUDES)
 LDFLAGS = -lgpiod
 
 SRC_DIR = ../src
