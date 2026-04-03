@@ -10,7 +10,7 @@
 
 This library provides a complete userspace driver for the ILI9488, a 320(RGB)×480 pixel 65K-color TFT LCD display controller/driver IC, a part of the [MSP3520](https://www.lcdwiki.com/3.5inch_SPI_Module_ILI9488_SKU%3AMSP3520) display. The library uses Linux's `spidev` kernel driver for SPI communication and `libgpiod` for GPIO control, enabling display operation entirely from userspace without requiring a custom kernel module.
 
-**Part of:** [AESD Final Project - SPI Display Userspace Driver](https://github.com/cu-ecen-aeld/final-project-assignment-jordankooyman)
+**Part of:** [AESD Final Project - SPI Display Userspace Driver](https://github.com/cu-ecen-aeld/final-project-jordankooyman)
 
 ## Features
 
