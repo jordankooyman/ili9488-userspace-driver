@@ -8,12 +8,16 @@
  *   RESET GPIO : BCM 24 (Pin 18)
  *   D/C GPIO   : BCM 25 (Pin 22)
  *   CS         : BCM  8 / SPI0_CE0 (Pin 24) -- handled by spidev
+ *
+ * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
-#include "ili9488_spi.h"
+#include "ili9488_gfx.h"
 #include "ili9488_hal.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
 
 /* RGB565 color values */
 #define COLOR_RED     0xF800U
@@ -25,40 +29,17 @@
 #define COLOR_CYAN    0x07FFU
 #define COLOR_MAGENTA 0xF81FU
 
-#define DISPLAY_WIDTH  320U
-#define DISPLAY_HEIGHT 480U
+#define DISPLAY_WIDTH  ILI9488_GFX_DEFAULT_WIDTH
+#define DISPLAY_HEIGHT ILI9488_GFX_DEFAULT_HEIGHT
 
 #define COLOR_HOLD_MS 2000U
 
 int main(void)
 {
-    printf("ILI9488 Color Fill Demo\n");
-
-    if (!spi_bus_initialize("/dev/spidev0.0", 10000000)) {
-        fprintf(stderr, "Error: failed to open SPI bus\n");
-        return EXIT_FAILURE;
-    }
-
-    if (!spi_gpio_initialize(GPIO_RESET, GPIO_STATE_HIGH)) {
-        fprintf(stderr, "Error: failed to initialise RESET GPIO (BCM 24)\n");
-        spi_bus_deinitialize();
-        return EXIT_FAILURE;
-    }
-
-    if (!spi_gpio_initialize(GPIO_DC_SELECT, GPIO_STATE_HIGH)) {
-        fprintf(stderr, "Error: failed to initialise D/C GPIO (BCM 25)\n");
-        spi_gpio_deinitialize(GPIO_RESET);
-        spi_bus_deinitialize();
-        return EXIT_FAILURE;
-    }
-
-    printf("GPIO and SPI ready\n");
+    printf("ILI9488 Demo\n");
 
     if (!hal_display_initialize(PIXEL_FORMAT_18BIT, ROTATION_0_NORMAL)) {
         fprintf(stderr, "Error: display initialisation failed\n");
-        spi_gpio_deinitialize(GPIO_DC_SELECT);
-        spi_gpio_deinitialize(GPIO_RESET);
-        spi_bus_deinitialize();
         return EXIT_FAILURE;
     }
 
@@ -84,23 +65,17 @@ int main(void)
         int i;
         for (i = 0; i < n; i++) {
             printf("  %s\n", colors[i].name);
-            if (!hal_fill_rectangle_solid(0, (uint16_t)(DISPLAY_WIDTH - 1),
-                                          0, (uint16_t)(DISPLAY_HEIGHT - 1),
-                                          colors[i].color)) {
+            if (!gfx_fill_screen_direct(colors[i].color)) {
                 fprintf(stderr, "Error: fill failed while drawing %s\n", colors[i].name);
-                spi_gpio_deinitialize(GPIO_DC_SELECT);
-                spi_gpio_deinitialize(GPIO_RESET);
-                spi_bus_deinitialize();
+                hal_display_deinitialize();
                 return EXIT_FAILURE;
             }
-            spi_delay_ms(COLOR_HOLD_MS);
+            usleep(COLOR_HOLD_MS * 1000);
         }
     }
 
     /* Unreachable in this demo */
     hal_display_deinitialize();
-    spi_gpio_deinitialize(GPIO_DC_SELECT);
-    spi_gpio_deinitialize(GPIO_RESET);
-    spi_bus_deinitialize();
+
     return EXIT_SUCCESS;
 }

@@ -8,11 +8,13 @@ OBJ_DIR = obj
 
 SRCS = main.c \
        $(SRC_DIR)/ili9488_spi.c \
-       $(SRC_DIR)/ili9488_hal.c
+       $(SRC_DIR)/ili9488_hal.c \
+       $(SRC_DIR)/ili9488_gfx.c
 
 OBJS = $(OBJ_DIR)/main.o \
        $(OBJ_DIR)/ili9488_spi.o \
-       $(OBJ_DIR)/ili9488_hal.o
+       $(OBJ_DIR)/ili9488_hal.o \
+       $(OBJ_DIR)/ili9488_gfx.o
 
 TARGET = ili9488_demo
 
@@ -33,6 +35,9 @@ $(OBJ_DIR)/ili9488_spi.o: $(SRC_DIR)/ili9488_spi.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/ili9488_hal.o: $(SRC_DIR)/ili9488_hal.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/ili9488_gfx.o: $(SRC_DIR)/ili9488_gfx.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

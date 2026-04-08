@@ -48,6 +48,27 @@ static hal_pixel_format_t g_current_pixel_format = PIXEL_FORMAT_16BIT;
 bool hal_display_initialize(hal_pixel_format_t pixel_format,
                             hal_rotation_t rotation)
 {
+    /* Hardware driver initialization */
+    if (!spi_bus_initialize("/dev/spidev0.0", 10000000)) {
+        // fprintf(stderr, "Error: failed to open SPI bus\n");
+        return false;
+    }
+
+    if (!spi_gpio_initialize(GPIO_RESET, GPIO_STATE_HIGH)) {
+        // fprintf(stderr, "Error: failed to initialise RESET GPIO (BCM 24)\n");
+        spi_bus_deinitialize();
+        return false;
+    }
+
+    if (!spi_gpio_initialize(GPIO_DC_SELECT, GPIO_STATE_HIGH)) {
+        // fprintf(stderr, "Error: failed to initialise D/C GPIO (BCM 25)\n");
+        spi_gpio_deinitialize(GPIO_RESET);
+        spi_bus_deinitialize();
+        return false;
+    }
+
+    // printf("GPIO and SPI ready\n");
+
     /* Hardware reset sequence — Datasheet Section 4 (Power On/Off Sequence) */
     spi_gpio_set_state(GPIO_RESET, GPIO_STATE_LOW);
     spi_delay_ms(1);
@@ -55,44 +76,44 @@ bool hal_display_initialize(hal_pixel_format_t pixel_format,
     spi_delay_ms(120);
 
     /* Software reset — Datasheet Section 5.2.2 (0x01) */
-    if (!spi_transmit_command(0x01)) return false;
+    if (!spi_transmit_command(0x01)) {hal_display_deinitialize(); return false;}
     spi_delay_ms(5);
 
     /* Sleep out — Datasheet Section 5.2.13 (0x11) */
-    if (!spi_transmit_command(0x11)) return false;
+    if (!spi_transmit_command(0x11)) {hal_display_deinitialize(); return false;}
     spi_delay_ms(120);
 
     /* Pixel format and rotation */
-    if (!hal_pixel_format_set(pixel_format)) return false;
+    if (!hal_pixel_format_set(pixel_format)) {hal_display_deinitialize(); return false;}
     if (!hal_display_rotation_set(rotation,
                                    HORIZONAL_DIRECTION_DEFAULT,
-                                   VERTICAL_DIRECTION_DEFAULT)) return false;
+                                   VERTICAL_DIRECTION_DEFAULT)) {hal_display_deinitialize(); return false;}
 
     /* Power supply configuration — Datasheet Section 5.3.12–5.3.17 */
-    if (!hal_power_gvdd_set(0x17)) return false;
-    if (!hal_power_vci_set(0x41)) return false;
-    if (!hal_power_vgh_vgl_set(0x0A, 0x0A)) return false;
-    if (!hal_power_vcomh_set(0x30)) return false;
+    if (!hal_power_gvdd_set(0x17)) {hal_display_deinitialize(); return false;}
+    if (!hal_power_vci_set(0x41)) {hal_display_deinitialize(); return false;}
+    if (!hal_power_vgh_vgl_set(0x0A, 0x0A)) {hal_display_deinitialize(); return false;}
+    if (!hal_power_vcomh_set(0x30)) {hal_display_deinitialize(); return false;}
 
     /* Working TFT_eSPI path also programs the 0xB0/0xB1/0xB4/0xB6/0xB7 registers. */
-    if (!hal_oscillator_frequency_set(0x00)) return false;
-    if (!hal_frame_rate_set(0xA0)) return false;
-    if (!hal_display_inversion_control_set(0x02)) return false;
-    if (!hal_display_function_control_set(0x02, 0x02, 0x3B)) return false;
-    if (!hal_entry_mode_set(0xC6)) return false;
+    if (!hal_oscillator_frequency_set(0x00)) {hal_display_deinitialize(); return false;}
+    if (!hal_frame_rate_set(0xA0)) {hal_display_deinitialize(); return false;}
+    if (!hal_display_inversion_control_set(0x02)) {hal_display_deinitialize(); return false;}
+    if (!hal_display_function_control_set(0x02, 0x02, 0x3B)) {hal_display_deinitialize(); return false;}
+    if (!hal_entry_mode_set(0xC6)) {hal_display_deinitialize(); return false;}
 
     /* Gamma — Datasheet Section 5.2.26 (0x26) */
-    if (!hal_gamma_curve_select(GAMMA_CURVE_3)) return false;
+    if (!hal_gamma_curve_select(GAMMA_CURVE_3)) {hal_display_deinitialize(); return false;}
 
     /* Full-screen address window */
-    if (!hal_column_address_set(0, 319)) return false;
-    if (!hal_row_address_set(0, 479)) return false;
+    if (!hal_column_address_set(0, 319)) {hal_display_deinitialize(); return false;}
+    if (!hal_row_address_set(0, 479)) {hal_display_deinitialize(); return false;}
 
     /* Normal display mode — Datasheet Section 5.2.15 (0x13) */
-    if (!hal_normal_display_mode_on()) return false;
+    if (!hal_normal_display_mode_on()) {hal_display_deinitialize(); return false;}
 
     /* Display on — Datasheet Section 5.2.21 (0x29) */
-    if (!hal_display_output_control(true)) return false;
+    if (!hal_display_output_control(true)) {hal_display_deinitialize(); return false;}
     spi_delay_ms(25);
 
     return true;
@@ -103,6 +124,12 @@ bool hal_display_deinitialize(void)
     if (!hal_display_output_control(false)) return false;
     spi_delay_ms(5);
     if (!hal_power_sleep_mode_set(true)) return false;
+
+    /* Hardware Driver deinitialize */
+    spi_gpio_deinitialize(GPIO_DC_SELECT);
+    spi_gpio_deinitialize(GPIO_RESET);
+    spi_bus_deinitialize();
+
     return true;
 }
 
