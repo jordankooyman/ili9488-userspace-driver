@@ -325,8 +325,7 @@ bool hal_gram_write_pixels(const uint8_t *pixel_buffer,
             return false;
     }
 
-    return spi_transmit_bulkdata(pixel_buffer,
-                                 (size_t)pixel_count * bytes_per_pixel);
+    return spi_transmit_bulkdata(pixel_buffer, (size_t)pixel_count * bytes_per_pixel);
 }
 
 bool hal_gram_read_pixels(uint8_t *pixel_buffer,

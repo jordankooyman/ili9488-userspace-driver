@@ -39,10 +39,10 @@
  * ========================================================================== */
 
 typedef struct {
-    uint16_t *pixels;       /* Row-major RGB565 pixels */
+    uint16_t *pixel_data;       /* Row-major RGB565 pixels */
     uint16_t width;         /* Visible width in pixels */
     uint16_t height;        /* Visible height in pixels */
-    uint32_t stride_pixels; /* Pixels per row in memory (>= width) */
+    uint32_t stride; /* Pixels per row in memory (>= width) */
 
     /* Dirty bounds tracked by drawing ops for optional partial flushes.
      * If dirty == false, bounds are ignored.
@@ -54,17 +54,55 @@ typedef struct {
     uint16_t dirty_y2;
 } gfx_framebuffer_t;
 
+
+/* ============================================================================
+ * Display-Direct Drawing (Bypass Framebuffer)
+ * ========================================================================== */
+
+/**
+ * @brief Draw a filled rectangle with specified color
+ * Coordinates are inclusive of both corners.
+ * Will do nothing if dimensions exceed display bounds at all, or are ordered wrong.
+ * @param x1 Leftmost column
+ * @param y1 Top row
+ * @param x2 Rightmost column
+ * @param y2 Bottom row
+ * @param color_rgb565 16-bit RGB565 color value
+ * @return true if pixels drawn successfully, false if coordinates out of bounds
+ */
+bool gfx_draw_filled_rectangle_direct(uint16_t x1, uint16_t y1,
+                               uint16_t x2, uint16_t y2,
+                               uint16_t color_rgb565);
+
+/**
+ * @brief Fill entire screen with solid color
+ * @param color_rgb565 16-bit RGB565 color value
+ * @return true if pixels drawn successfully, false if coordinates out of bounds
+ */
+bool gfx_fill_screen_direct(uint16_t color_rgb565);
+
+/**
+ * @brief Draw a single pixel at (x, y)
+ * @param x X coordinate (0 to width-1)
+ * @param y Y coordinate (0 to height-1)
+ * @param color_rgb565 16-bit RGB565 color value
+ * @return true if pixel drawn successfully, false if coordinates out of bounds
+ */
+bool gfx_draw_pixel_direct(uint16_t x, uint16_t y, uint16_t color_rgb565);
+
 /* ============================================================================
  * Framebuffer Lifecycle (User-managed Storage)
  * ========================================================================== */
 
 /**
  * @brief Return required pixel count for width/height.
+ * @return Number of pixels required for given dimensions, or 0 if invalid
  */
 size_t gfx_framebuffer_required_pixels(uint16_t width, uint16_t height);
 
 /**
  * @brief Return required byte count for width/height in RGB565.
+ * @return Number of bytes required for given dimensions, or 0 if invalid
  */
 size_t gfx_framebuffer_required_bytes(uint16_t width, uint16_t height);
 
@@ -87,7 +125,7 @@ bool gfx_framebuffer_bind(gfx_framebuffer_t *framebuffer,
                           uint32_t stride_pixels);
 
 /**
- * @brief Clear framebuffer object metadata (does not free caller storage).
+ * @brief Clear framebuffer object metadata (does not free caller storage, should be done before calling).
  */
 void gfx_framebuffer_unbind(gfx_framebuffer_t *framebuffer);
 
@@ -97,16 +135,33 @@ void gfx_framebuffer_unbind(gfx_framebuffer_t *framebuffer);
 
 /**
  * @brief Mark entire framebuffer dirty.
+ * @param framebuffer Framebuffer object to mark dirty
  */
 void gfx_mark_dirty_full(gfx_framebuffer_t *framebuffer);
 
 /**
+ * @brief Mark a rectangular region dirty, expanding existing dirty region if necessary.
+ * Coordinates are inclusive and clipped to framebuffer bounds.
+ * @param framebuffer Framebuffer object to mark dirty
+ * @param x1 Leftmost column of dirty region
+ * @param y1 Top row of dirty region
+ * @param x2 Rightmost column of dirty region
+ * @param y2 Bottom row of dirty region
+ */
+void gfx_mark_dirty_region(gfx_framebuffer_t *framebuffer,
+                             uint16_t x1, uint16_t y1,
+                             uint16_t x2, uint16_t y2);
+
+/**
  * @brief Clear dirty state.
+ * @param framebuffer Framebuffer object to clear dirty state
  */
 void gfx_clear_dirty(gfx_framebuffer_t *framebuffer);
 
 /**
  * @brief Query dirty flag.
+ * @param framebuffer Framebuffer object to query
+ * @return true if framebuffer is dirty, false if clean or invalid pointer
  */
 bool gfx_is_dirty(const gfx_framebuffer_t *framebuffer);
 
@@ -116,11 +171,17 @@ bool gfx_is_dirty(const gfx_framebuffer_t *framebuffer);
 
 /**
  * @brief Fill entire framebuffer with one RGB565 color.
+ * @param framebuffer Framebuffer object to fill
  */
 bool gfx_fill(gfx_framebuffer_t *framebuffer, uint16_t color_rgb565);
 
 /**
  * @brief Draw one pixel with bounds check.
+ * @param framebuffer Framebuffer object to modify
+ * @param x X coordinate (0 to width-1)
+ * @param y Y coordinate (0 to height-1)
+ * @param color_rgb565 16-bit RGB565 color value
+ * @return true if pixel drawn successfully, false if coordinates out of bounds
  */
 bool gfx_draw_pixel(gfx_framebuffer_t *framebuffer,
                     uint16_t x,
@@ -130,6 +191,14 @@ bool gfx_draw_pixel(gfx_framebuffer_t *framebuffer,
 /**
  * @brief Draw a filled rectangle inclusive of both corners.
  * Coordinates are clipped to framebuffer bounds.
+ * Will draw slim rectangle along the edge if fully out of bounds.
+ * @param framebuffer Framebuffer object to modify
+ * @param x1 Leftmost column of rectangle
+ * @param y1 Top row of rectangle
+ * @param x2 Rightmost column of rectangle
+ * @param y2 Bottom row of rectangle
+ * @param color_rgb565 16-bit RGB565 color value
+ * @return true if pixels drawn successfully, false if coordinates out of bounds
  */
 bool gfx_draw_filled_rectangle(gfx_framebuffer_t *framebuffer,
                                uint16_t x1,
@@ -141,12 +210,19 @@ bool gfx_draw_filled_rectangle(gfx_framebuffer_t *framebuffer,
 /**
  * @brief Draw a line using integer rasterization.
  * Coordinates outside bounds are clipped by implementation.
+ * @param framebuffer Framebuffer object to modify
+ * @param x1 Leftmost column of line start
+ * @param y1 Top row of line start
+ * @param x2 Rightmost column of line end
+ * @param y2 Bottom row of line end
+ * @param color_rgb565 16-bit RGB565 color value
+ * @return true if pixels drawn successfully, false if coordinates out of bounds
  */
 bool gfx_draw_line(gfx_framebuffer_t *framebuffer,
-                   uint16_t x1,
-                   uint16_t y1,
-                   uint16_t x2,
-                   uint16_t y2,
+                   int16_t x1,
+                   int16_t y1,
+                   int16_t x2,
+                   int16_t y2,
                    uint16_t color_rgb565);
 
 /* ============================================================================
@@ -154,29 +230,35 @@ bool gfx_draw_line(gfx_framebuffer_t *framebuffer,
  * ========================================================================== */
 
 /**
- * @brief Flush full framebuffer to display.
- *
- * Typical implementation:
- *   hal_window_address_set(0, width-1, 0, height-1)
- *   hal_gram_write_start()
- *   hal_gram_write_pixels(...)
- *
- * @return true on successful transfer, false otherwise
- */
-bool gfx_flush(const gfx_framebuffer_t *framebuffer);
-
-/**
  * @brief Flush only a specified region.
  * Region is clipped to framebuffer bounds.
+ * Resets dirty state on success, regardless of dirty region.
+ * Always writes in 18-bit mode currently
+ * @param framebuffer Framebuffer object to flush
+ * @param x1 Leftmost column of region
+ * @param y1 Top row of region
+ * @param x2 Rightmost column of region
+ * @param y2 Bottom row of region
+ * @return true if region flushed successfully, false otherwise
  */
-bool gfx_flush_region(const gfx_framebuffer_t *framebuffer,
+bool gfx_flush_region(gfx_framebuffer_t *framebuffer,
                       uint16_t x1,
                       uint16_t y1,
                       uint16_t x2,
                       uint16_t y2);
 
 /**
+ * @brief Flush full framebuffer to display. Must be RGB565 format
+ * Always writes in 18-bit mode currently
+ * @param framebuffer Framebuffer object to flush
+ * @return true on successful transfer, false otherwise
+ */
+bool gfx_flush(gfx_framebuffer_t *framebuffer);
+
+/**
  * @brief Flush dirty region if any, then clear dirty state on success.
+ * Always writes in 18-bit mode currently
+ * @param framebuffer Framebuffer object to flush
  * @return true if no dirty data existed or flush succeeded
  */
 bool gfx_flush_dirty(gfx_framebuffer_t *framebuffer);
