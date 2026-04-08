@@ -7,6 +7,8 @@
  *
  * References: ILI9488 Datasheet, Section 5 (Command Description)
  * Cross-checked against TFT_eSPI's working ILI9488 SPI init sequence.
+ *
+ * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
 #include "ili9488_hal.h"

@@ -10,6 +10,8 @@
  *         CS (CE0)  → BCM  8 (Pin 24) — managed by spidev kernel driver
  *
  * References: ILI9488 Datasheet, Section 4.2 (DBI Type C Serial Interface)
+ *
+ * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
 #include "ili9488_spi.h"

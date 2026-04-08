@@ -10,6 +10,8 @@
  * All functions map directly to ILI9488 datasheet command sections.
  * References: ILI9488 Datasheet, Section 5 (Command Description)
  * Working SPI behavior is cross-checked against TFT_eSPI's ILI9488 driver.
+ *
+ * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
 #ifndef ILI9488_HAL_H

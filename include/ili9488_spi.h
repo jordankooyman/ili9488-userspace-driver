@@ -7,6 +7,8 @@
  * making it easy to port between platforms (Linux spidev, Arduino, ESP32, etc.).
  *
  * References: ILI9488 Datasheet, Section 6 (SPI Serial Interface)
+ *
+ * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
 #ifndef ILI9488_SPI_H
