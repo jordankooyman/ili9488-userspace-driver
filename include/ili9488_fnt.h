@@ -23,12 +23,6 @@ extern const uint8_t ili9488_font_8x12[ILI9488_FONT_GLYPH_COUNT][12];
  */
 extern const uint8_t ili9488_font_6x8[ILI9488_FONT_GLYPH_COUNT][8];
 
-/*
- * Array of 95 ASCII Glyphs (32-126) for a 5x7 pixel font.
- * Each glyph is 7 rows, one byte per row.
- */
-extern const uint8_t ili9488_font_5x7[ILI9488_FONT_GLYPH_COUNT][7];
-
 #ifdef __cplusplus
 }
 #endif
