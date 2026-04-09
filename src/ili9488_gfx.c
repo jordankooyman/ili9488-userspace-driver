@@ -217,13 +217,21 @@ void gfx_mark_dirty_region(gfx_framebuffer_t *framebuffer,
         return; // Unbound framebuffer, do nothing
     }
 
-    // Check coordinates against framebuffer bounds
-    if (x1 >= framebuffer->width || y1 >= framebuffer->height ||
-        x2 >= framebuffer->width || y2 >= framebuffer->height) {
-        return; // Out of bounds, do nothing
+    // Reject regions that are completely outside bounds.
+    if ((x1 >= framebuffer->width && x2 >= framebuffer->width) ||
+        (y1 >= framebuffer->height && y2 >= framebuffer->height)) {
+        return; // Fully out of bounds, do nothing
     }
     if (x2 < x1 || y2 < y1) {
         return; // Invalid rectangle, do nothing
+    }
+
+    // Clip inclusive region to framebuffer bounds.
+    if (x2 >= framebuffer->width) {
+        x2 = (uint16_t)(framebuffer->width - 1U);
+    }
+    if (y2 >= framebuffer->height) {
+        y2 = (uint16_t)(framebuffer->height - 1U);
     }
 
     if (!framebuffer->dirty) {
@@ -533,24 +541,27 @@ bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
     if (bitmap == NULL) {
         return false; // Invalid bitmap pointer, do nothing
     }
+    if (bitmap_width == 0 || bitmap_height == 0) {
+        return false; // Invalid bitmap dimensions
+    }
 
     // Validate coordinates
     if (x >= framebuffer->width || y >= framebuffer->height) {
         return false; // Out of bounds, do nothing
     }
-    if (x + bitmap_width >= framebuffer->width || y + bitmap_height >= framebuffer->height) {
+    if (bitmap_width > (uint16_t)(framebuffer->width - x) ||
+        bitmap_height > (uint16_t)(framebuffer->height - y)) {
         return false; // Bitmap would be partially out of bounds, do nothing
     }
 
     // Update Pixels based on bitmap
-    uint16_t row;
-    for (row = 0; row < bitmap_height; row++) {
-        uint16_t col;
-        for (col = 0; col < bitmap_width; col++) {
-            uint32_t bit_index = row * bitmap_width + col;
-            uint32_t byte_index = bit_index / 8;
-            uint8_t bit_mask = 1 << (7 - (bit_index % 8)); // MSB-first
-            if (bitmap[byte_index] & bit_mask) {
+    uint16_t bytes_per_row = (bitmap_width + 7U) / 8U;
+    for (uint16_t row = 0; row < bitmap_height; row++) {
+        const uint8_t *row_data = bitmap + ((size_t)row * bytes_per_row);
+        for (uint16_t col = 0; col < bitmap_width; col++) {
+            uint16_t byte_index = col / 8U;
+            uint8_t bit_mask = (uint8_t)(1U << (7U - (col % 8U)));
+            if (row_data[byte_index] & bit_mask) {
                 // Set pixel in framebuffer
                 framebuffer->pixel_data[(y + row) * framebuffer->stride + (x + col)] = color_rgb565;
             }
@@ -558,7 +569,7 @@ bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
     }
 
     // Update dirty region
-    gfx_mark_dirty_region(framebuffer, x, y, x + bitmap_width, y + bitmap_height);
+    gfx_mark_dirty_region(framebuffer, x, y, (uint16_t)(x + bitmap_width - 1U), (uint16_t)(y + bitmap_height - 1U));
 
     return true;
 }
@@ -596,21 +607,25 @@ bool gfx_draw_char(gfx_framebuffer_t *framebuffer,
             if (character < ili9488_font_6x8_min_char || character > ili9488_font_6x8_max_char) {
                 return false; // Character not in font, do nothing
             }
-            gfx_draw_mono_bitmap(framebuffer,
+            if (!gfx_draw_mono_bitmap(framebuffer,
                                  ili9488_font_6x8[character - ili9488_font_6x8_min_char],
                                  x, y,
                                  ili9488_font_6x8_width_pixels, ili9488_font_6x8_height_pixels,
-                                 color_rgb565);
+                                 color_rgb565)) {
+                return false;
+            }
             break;
         case ILI9488_FONT_8X12:
             if (character < ili9488_font_8x12_min_char || character > ili9488_font_8x12_max_char) {
                 return false; // Character not in font, do nothing
             }
-            gfx_draw_mono_bitmap(framebuffer,
+            if (!gfx_draw_mono_bitmap(framebuffer,
                                  ili9488_font_8x12[character - ili9488_font_8x12_min_char],
                                  x, y,
                                  ili9488_font_8x12_width_pixels, ili9488_font_8x12_height_pixels,
-                                 color_rgb565);
+                                 color_rgb565)) {
+                return false;
+            }
             break;
         default:
             return false; // Unsupported font, do nothing
@@ -633,15 +648,21 @@ bool check_font_coordinates(const gfx_framebuffer_t *framebuffer,
                             uint16_t y, 
                             ili9488_font_t font) 
 {
+    if (framebuffer == NULL || framebuffer->pixel_data == NULL) {
+        return false;
+    }
+
     switch(font)
     {
         case ILI9488_FONT_6X8:
-            if (x + ili9488_font_6x8_width_pixels >= framebuffer->width || y + ili9488_font_6x8_height_pixels >= framebuffer->height) {
+            if (x > (uint16_t)(framebuffer->width - ili9488_font_6x8_width_pixels) ||
+                y > (uint16_t)(framebuffer->height - ili9488_font_6x8_height_pixels)) {
                 return false; // Out of bounds, do nothing
             }
             break;
         case ILI9488_FONT_8X12:
-            if (x + ili9488_font_8x12_width_pixels >= framebuffer->width || y + ili9488_font_8x12_height_pixels >= framebuffer->height) {
+            if (x > (uint16_t)(framebuffer->width - ili9488_font_8x12_width_pixels) ||
+                y > (uint16_t)(framebuffer->height - ili9488_font_8x12_height_pixels)) {
                 return false; // Out of bounds, do nothing
             }
             break;
@@ -697,6 +718,32 @@ bool gfx_draw_string(gfx_framebuffer_t *framebuffer,
     // Iterate through characters in string and draw them sequentially
     while (*text) { // Loop until null terminator
         char character = *text;
+
+        if (character == '\n') {
+            cursor_x = x;
+            switch(font)
+            {
+                case ILI9488_FONT_6X8:
+                    cursor_y += ili9488_font_6x8_height_pixels;
+                    break;
+                case ILI9488_FONT_8X12:
+                    cursor_y += ili9488_font_8x12_height_pixels;
+                    break;
+                default:
+                    return false;
+            }
+            cursor_y += wrapping_padding_pixels;
+            if (!check_font_coordinates(framebuffer, cursor_x, cursor_y, font)) {
+                return false;
+            }
+            text++;
+            continue;
+        }
+
+        if (character == '\r') {
+            text++;
+            continue;
+        }
 
         // Check if character can be drawn at current cursor position
         if (!check_font_coordinates(framebuffer, cursor_x, cursor_y, font)) {
@@ -778,14 +825,21 @@ bool gfx_flush_region(gfx_framebuffer_t *framebuffer,
         return false; // Unbound framebuffer, do nothing
     }
 
-    // Clip region to framebuffer bounds
-    if (x1 >= framebuffer->width || y1 >= framebuffer->height) {
-        return false; // Region completely outside bounds
+    // Reject regions that are completely outside bounds.
+    if ((x1 >= framebuffer->width && x2 >= framebuffer->width) ||
+        (y1 >= framebuffer->height && y2 >= framebuffer->height)) {
+        return false;
     }
-    if (x2 >= framebuffer->width) x2 = framebuffer->width - 1;
-    if (y2 >= framebuffer->height) y2 = framebuffer->height - 1;
     if (x2 < x1 || y2 < y1) {
         return false; // Invalid region
+    }
+
+    // Clip inclusive region to framebuffer bounds.
+    if (x2 >= framebuffer->width) {
+        x2 = (uint16_t)(framebuffer->width - 1U);
+    }
+    if (y2 >= framebuffer->height) {
+        y2 = (uint16_t)(framebuffer->height - 1U);
     }
 
     // Set address window for region

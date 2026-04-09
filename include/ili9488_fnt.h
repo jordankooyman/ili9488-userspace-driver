@@ -28,7 +28,7 @@ typedef enum {
 #define ili9488_font_8x12_max_char (0x7E)
 #define ili9488_font_8x12_width_pixels (8)
 #define ili9488_font_8x12_height_pixels (12)
-extern const uint8_t ili9488_font_8x12[(1 + ili9488_font_8x12_max_char - ili9488_font_8x12_min_char)][ili9488_font_8x12_height_pixels];
+extern const uint8_t ili9488_font_8x12[95][12];
 
 /*
  * Array of 95 ASCII Glyphs (32-126) for a 6x8 pixel font.
@@ -38,6 +38,6 @@ extern const uint8_t ili9488_font_8x12[(1 + ili9488_font_8x12_max_char - ili9488
 #define ili9488_font_6x8_max_char (0x7E)
 #define ili9488_font_6x8_width_pixels (6)
 #define ili9488_font_6x8_height_pixels (8)
-extern const uint8_t ili9488_font_6x8[(1 + ili9488_font_6x8_max_char - ili9488_font_6x8_min_char)][ili9488_font_6x8_height_pixels];
+extern const uint8_t ili9488_font_6x8[95][8];
 
 #endif

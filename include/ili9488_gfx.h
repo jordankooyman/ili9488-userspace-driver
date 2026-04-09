@@ -142,7 +142,8 @@ void gfx_mark_dirty_full(gfx_framebuffer_t *framebuffer);
 
 /**
  * @brief Mark a rectangular region dirty, expanding existing dirty region if necessary.
- * Coordinates are inclusive and clipped to framebuffer bounds.
+ * Coordinates are inclusive. Right/bottom edges are clipped to framebuffer bounds.
+ * If the region is fully outside bounds or arguments are invalid, no update occurs.
  * @param framebuffer Framebuffer object to mark dirty
  * @param x1 Leftmost column of dirty region
  * @param y1 Top row of dirty region
@@ -311,7 +312,8 @@ bool gfx_draw_string(gfx_framebuffer_t *framebuffer,
 
 /**
  * @brief Flush only a specified region.
- * Region is clipped to framebuffer bounds.
+ * Region uses inclusive coordinates. Right/bottom edges are clipped to framebuffer bounds.
+ * Returns false for fully out-of-bounds regions or invalid arguments.
  * Resets dirty state on success, regardless of dirty region.
  * Always writes in 18-bit mode currently
  * @param framebuffer Framebuffer object to flush
