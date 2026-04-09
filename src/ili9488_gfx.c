@@ -499,6 +499,69 @@ bool gfx_draw_line(gfx_framebuffer_t *framebuffer,
 
 
 /* ============================================================================
+ * Text Rendering (Memory Only)
+ * ========================================================================== */
+
+bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
+                          const uint8_t *bitmap,
+                          uint16_t x,
+                          uint16_t y,
+                          uint16_t bitmap_width,
+                          uint16_t bitmap_height,
+                          uint16_t color_rgb565)
+{
+    (void)framebuffer;
+    (void)bitmap;
+    (void)x;
+    (void)y;
+    (void)bitmap_width;
+    (void)bitmap_height;
+    (void)color_rgb565;
+
+    /* TODO: Implement 1bpp glyph/bitmap blit into framebuffer. */
+    return false;
+}
+
+
+bool gfx_draw_char(gfx_framebuffer_t *framebuffer,
+                   char c,
+                   uint16_t x,
+                   uint16_t y,
+                   uint16_t color_rgb565,
+                   uint8_t scale)
+{
+    (void)framebuffer;
+    (void)c;
+    (void)x;
+    (void)y;
+    (void)color_rgb565;
+    (void)scale;
+
+    /* TODO: Implement ASCII glyph lookup and draw path. */
+    return false;
+}
+
+
+bool gfx_draw_string(gfx_framebuffer_t *framebuffer,
+                     const char *text,
+                     uint16_t x,
+                     uint16_t y,
+                     uint16_t color_rgb565,
+                     uint8_t scale)
+{
+    (void)framebuffer;
+    (void)text;
+    (void)x;
+    (void)y;
+    (void)color_rgb565;
+    (void)scale;
+
+    /* TODO: Implement multi-character text rendering with newline handling. */
+    return false;
+}
+
+
+/* ============================================================================
  * Display Flush (Graphics Layer -> HAL)
  * ========================================================================== */
 

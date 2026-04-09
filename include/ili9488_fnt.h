@@ -1,3 +1,15 @@
+/**
+ * @file ili9488_fnt.h
+ * @brief Font tables used by the ILI9488 graphics layer.
+ *
+ * References:
+ * - 6x8 source adapted from:
+ *   https://github.com/idispatch/raster-fonts/blob/master/font-6x8.c
+ *
+ * AI Usage Disclaimer: This file was generated and edited with AI tools.
+ * See ./AI_chats for available conversation logs.
+ */
+
 #ifndef ILI9488_FNT_H
 #define ILI9488_FNT_H
 

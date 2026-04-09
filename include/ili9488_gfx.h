@@ -226,6 +226,67 @@ bool gfx_draw_line(gfx_framebuffer_t *framebuffer,
                    uint16_t color_rgb565);
 
 /* ============================================================================
+ * Text Rendering (Memory Only)
+ * ========================================================================== */
+
+/**
+ * @brief Draw a 1bpp bitmap where each set bit draws one pixel.
+ * Bitmap is expected row-major, MSB-first in each byte.
+ *
+ * @param framebuffer Framebuffer object to modify
+ * @param bitmap Pointer to monochrome bitmap data
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param bitmap_width Bitmap width in pixels
+ * @param bitmap_height Bitmap height in pixels
+ * @param color_rgb565 RGB565 color for set bits
+ * @return true if drawing completed, false on invalid args
+ */
+bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
+                          const uint8_t *bitmap,
+                          uint16_t x,
+                          uint16_t y,
+                          uint16_t bitmap_width,
+                          uint16_t bitmap_height,
+                          uint16_t color_rgb565);
+
+/**
+ * @brief Draw one ASCII character using built-in font tables.
+ *
+ * @param framebuffer Framebuffer object to modify
+ * @param c Character to draw
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param color_rgb565 RGB565 color for glyph pixels
+ * @param scale Integer glyph scale factor (1 = native size)
+ * @return true if drawing completed, false on invalid args/unsupported input
+ */
+bool gfx_draw_char(gfx_framebuffer_t *framebuffer,
+                   char c,
+                   uint16_t x,
+                   uint16_t y,
+                   uint16_t color_rgb565,
+                   uint8_t scale);
+
+/**
+ * @brief Draw a null-terminated string using built-in font tables.
+ *
+ * @param framebuffer Framebuffer object to modify
+ * @param text Null-terminated string
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param color_rgb565 RGB565 color for glyph pixels
+ * @param scale Integer glyph scale factor (1 = native size)
+ * @return true if drawing completed, false on invalid args
+ */
+bool gfx_draw_string(gfx_framebuffer_t *framebuffer,
+                     const char *text,
+                     uint16_t x,
+                     uint16_t y,
+                     uint16_t color_rgb565,
+                     uint8_t scale);
+
+/* ============================================================================
  * Display Flush (Graphics Layer -> HAL)
  * ========================================================================== */
 
