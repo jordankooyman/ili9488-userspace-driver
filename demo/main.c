@@ -11,10 +11,7 @@
  * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
- // Note: Next ToDo: Update demo to use framebuffer API, doing a dirty region animation with color changes to show smearing and moving in a square
- // Also ToDo: Add something to do the single pixel draw demo
- // After ToDo: Add Line drawing to demo
- // Then ToDo: Add text drawing library, then add text to demo
+ // Next ToDo: Add text drawing library, then add text to demo
  // Final ToDo: Review and clean up all code, finalize comments and documentation (readme and wiki), and prepare for final project submission
 
 #include "ili9488_gfx.h"

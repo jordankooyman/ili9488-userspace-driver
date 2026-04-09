@@ -12,7 +12,7 @@
 
 #include "ili9488_fnt.h"
 
-const uint8_t ili9488_font_8x12[95][12] = {
+const uint8_t ili9488_font_8x12[(1 + ili9488_font_8x12_max_char - ili9488_font_8x12_min_char)][ili9488_font_8x12_height_pixels] = {
     // 0x20 ' '
     {
         0b00000000,
@@ -1534,6 +1534,8 @@ const uint8_t ili9488_font_8x12[95][12] = {
     },
 
 };
+
+
 /*
  * 6x8 font source:
  * https://github.com/idispatch/raster-fonts/blob/master/font-6x8.c
@@ -1542,7 +1544,7 @@ const uint8_t ili9488_font_8x12[95][12] = {
  * - This table includes ASCII 0x20..0x7E only (95 glyphs).
  * - Rows are stored as 8-bit values; low 6 bits are glyph pixels.
  */
-const uint8_t ili9488_font_6x8[ILI9488_FONT_GLYPH_COUNT][8] = {
+const uint8_t ili9488_font_6x8[(1 + ili9488_font_6x8_max_char - ili9488_font_6x8_min_char)][ili9488_font_6x8_height_pixels] = {
     // 0x20 ' '
     {
         0b00000000,

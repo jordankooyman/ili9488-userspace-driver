@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "ili9488_fnt.h"
 
 
 /* ============================================================================
@@ -254,37 +255,55 @@ bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
  * @brief Draw one ASCII character using built-in font tables.
  *
  * @param framebuffer Framebuffer object to modify
- * @param c Character to draw
+ * @param character Character to draw
  * @param x Leftmost destination column
  * @param y Top destination row
  * @param color_rgb565 RGB565 color for glyph pixels
- * @param scale Integer glyph scale factor (1 = native size)
+ * @param font Font to use for rendering
  * @return true if drawing completed, false on invalid args/unsupported input
  */
 bool gfx_draw_char(gfx_framebuffer_t *framebuffer,
-                   char c,
+                   char character,
                    uint16_t x,
                    uint16_t y,
                    uint16_t color_rgb565,
-                   uint8_t scale);
+                   ili9488_font_t font);
+
+/**
+ * @brief Check if a character can be drawn at given coordinates with specified font without going out of bounds.
+ * @param framebuffer Framebuffer object to check against
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param font Font to use for rendering
+ * @return true if character would be fully on the display, false if it would be partially or fully out of bounds, or if font is unsupported
+ */
+bool check_font_coordinates(const gfx_framebuffer_t *framebuffer,
+                            uint16_t x,
+                            uint16_t y, 
+                            ili9488_font_t font);
 
 /**
  * @brief Draw a null-terminated string using built-in font tables.
- *
+ * Includes optional line wrapping with variable vertical padding.
+ * Will stop drawing if text exceeds display bounds (either horizontally or vertically).
  * @param framebuffer Framebuffer object to modify
  * @param text Null-terminated string
  * @param x Leftmost destination column
  * @param y Top destination row
+ * @param line_wrap If true, will attempt to wrap text to next line if it would exceed display bounds. If false, will stop drawing when text exceeds bounds.
+ * @param wrapping_padding_pixels If nonzero, number of pixels to leave between wrapped lines vertically. Lines will wrap when next character would exceed display bounds.
  * @param color_rgb565 RGB565 color for glyph pixels
- * @param scale Integer glyph scale factor (1 = native size)
+ * @param font Font to use for rendering
  * @return true if drawing completed, false on invalid args
  */
 bool gfx_draw_string(gfx_framebuffer_t *framebuffer,
                      const char *text,
                      uint16_t x,
                      uint16_t y,
+                     bool line_wrap,
+                     uint8_t wrapping_padding_pixels,
                      uint16_t color_rgb565,
-                     uint8_t scale);
+                     ili9488_font_t font);
 
 /* ============================================================================
  * Display Flush (Graphics Layer -> HAL)

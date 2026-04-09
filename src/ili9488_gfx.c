@@ -502,6 +502,19 @@ bool gfx_draw_line(gfx_framebuffer_t *framebuffer,
  * Text Rendering (Memory Only)
  * ========================================================================== */
 
+/**
+ * @brief Draw a 1bpp bitmap where each set bit draws one pixel.
+ * Bitmap is expected row-major, MSB-first in each byte.
+ *
+ * @param framebuffer Framebuffer object to modify
+ * @param bitmap Pointer to monochrome bitmap data
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param bitmap_width Bitmap width in pixels
+ * @param bitmap_height Bitmap height in pixels
+ * @param color_rgb565 RGB565 color for set bits
+ * @return true if drawing completed, false on invalid args
+ */
 bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
                           const uint8_t *bitmap,
                           uint16_t x,
@@ -510,54 +523,228 @@ bool gfx_draw_mono_bitmap(gfx_framebuffer_t *framebuffer,
                           uint16_t bitmap_height,
                           uint16_t color_rgb565)
 {
-    (void)framebuffer;
-    (void)bitmap;
-    (void)x;
-    (void)y;
-    (void)bitmap_width;
-    (void)bitmap_height;
-    (void)color_rgb565;
+    // Validate pointers
+    if (framebuffer == NULL) {
+        return false;
+    }
+    if (framebuffer->pixel_data == NULL) {
+        return false; // Unbound framebuffer, do nothing
+    }
+    if (bitmap == NULL) {
+        return false; // Invalid bitmap pointer, do nothing
+    }
 
-    /* TODO: Implement 1bpp glyph/bitmap blit into framebuffer. */
-    return false;
+    // Validate coordinates
+    if (x >= framebuffer->width || y >= framebuffer->height) {
+        return false; // Out of bounds, do nothing
+    }
+    if (x + bitmap_width >= framebuffer->width || y + bitmap_height >= framebuffer->height) {
+        return false; // Bitmap would be partially out of bounds, do nothing
+    }
+
+    // Update Pixels based on bitmap
+    uint16_t row;
+    for (row = 0; row < bitmap_height; row++) {
+        uint16_t col;
+        for (col = 0; col < bitmap_width; col++) {
+            uint32_t bit_index = row * bitmap_width + col;
+            uint32_t byte_index = bit_index / 8;
+            uint8_t bit_mask = 1 << (7 - (bit_index % 8)); // MSB-first
+            if (bitmap[byte_index] & bit_mask) {
+                // Set pixel in framebuffer
+                framebuffer->pixel_data[(y + row) * framebuffer->stride + (x + col)] = color_rgb565;
+            }
+        }
+    }
+
+    // Update dirty region
+    gfx_mark_dirty_region(framebuffer, x, y, x + bitmap_width, y + bitmap_height);
+
+    return true;
 }
 
 
+/**
+ * @brief Draw one ASCII character using built-in font tables.
+ *
+ * @param framebuffer Framebuffer object to modify
+ * @param character Character to draw
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param color_rgb565 RGB565 color for glyph pixels
+ * @param font Font to use for rendering
+ * @return true if drawing completed, false on invalid args/unsupported input
+ */
 bool gfx_draw_char(gfx_framebuffer_t *framebuffer,
-                   char c,
+                   char character,
                    uint16_t x,
                    uint16_t y,
                    uint16_t color_rgb565,
-                   uint8_t scale)
+                   ili9488_font_t font)
 {
-    (void)framebuffer;
-    (void)c;
-    (void)x;
-    (void)y;
-    (void)color_rgb565;
-    (void)scale;
+    // Validate pointers
+    if (framebuffer == NULL) {
+        return false;
+    }
+    if (framebuffer->pixel_data == NULL) {
+        return false; // Unbound framebuffer, do nothing
+    }
 
-    /* TODO: Implement ASCII glyph lookup and draw path. */
-    return false;
+    switch(font)
+    {
+        case ILI9488_FONT_6X8:
+            if (character < ili9488_font_6x8_min_char || character > ili9488_font_6x8_max_char) {
+                return false; // Character not in font, do nothing
+            }
+            gfx_draw_mono_bitmap(framebuffer,
+                                 ili9488_font_6x8[character - ili9488_font_6x8_min_char],
+                                 x, y,
+                                 ili9488_font_6x8_width_pixels, ili9488_font_6x8_height_pixels,
+                                 color_rgb565);
+            break;
+        case ILI9488_FONT_8X12:
+            if (character < ili9488_font_8x12_min_char || character > ili9488_font_8x12_max_char) {
+                return false; // Character not in font, do nothing
+            }
+            gfx_draw_mono_bitmap(framebuffer,
+                                 ili9488_font_8x12[character - ili9488_font_8x12_min_char],
+                                 x, y,
+                                 ili9488_font_8x12_width_pixels, ili9488_font_8x12_height_pixels,
+                                 color_rgb565);
+            break;
+        default:
+            return false; // Unsupported font, do nothing
+    }
+
+    return true;
 }
 
 
+/**
+ * @brief Check if a character can be drawn at given coordinates with specified font without going out of bounds.
+ * @param framebuffer Framebuffer object to check against
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param font Font to use for rendering
+ * @return true if character would be fully on the display, false if it would be partially or fully out of bounds, or if font is unsupported
+ */
+bool check_font_coordinates(const gfx_framebuffer_t *framebuffer,
+                            uint16_t x,
+                            uint16_t y, 
+                            ili9488_font_t font) 
+{
+    switch(font)
+    {
+        case ILI9488_FONT_6X8:
+            if (x + ili9488_font_6x8_width_pixels >= framebuffer->width || y + ili9488_font_6x8_height_pixels >= framebuffer->height) {
+                return false; // Out of bounds, do nothing
+            }
+            break;
+        case ILI9488_FONT_8X12:
+            if (x + ili9488_font_8x12_width_pixels >= framebuffer->width || y + ili9488_font_8x12_height_pixels >= framebuffer->height) {
+                return false; // Out of bounds, do nothing
+            }
+            break;
+        default:
+            return false; // Unsupported font, do nothing
+    }
+    return true; // Bounds check passed, fully on the display
+}
+
+
+/**
+ * @brief Draw a null-terminated string using built-in font tables.
+ * Includes optional line wrapping with variable vertical padding.
+ * Will stop drawing if text exceeds display bounds (either horizontally or vertically).
+ * @param framebuffer Framebuffer object to modify
+ * @param text Null-terminated string
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param line_wrap If true, will attempt to wrap text to next line if it would exceed display bounds. If false, will stop drawing when text exceeds bounds.
+ * @param wrapping_padding_pixels If nonzero, number of pixels to leave between wrapped lines vertically. Lines will wrap when next character would exceed display bounds.
+ * @param color_rgb565 RGB565 color for glyph pixels
+ * @param font Font to use for rendering
+ * @return true if drawing completed, false on invalid args
+ */
 bool gfx_draw_string(gfx_framebuffer_t *framebuffer,
                      const char *text,
                      uint16_t x,
                      uint16_t y,
+                     bool line_wrap,
+                     uint8_t wrapping_padding_pixels,
                      uint16_t color_rgb565,
-                     uint8_t scale)
+                     ili9488_font_t font)
 {
-    (void)framebuffer;
-    (void)text;
-    (void)x;
-    (void)y;
-    (void)color_rgb565;
-    (void)scale;
+    // Validate pointers
+    if (framebuffer == NULL) {
+        return false;
+    }
+    if (framebuffer->pixel_data == NULL) {
+        return false; // Unbound framebuffer, do nothing
+    }
+    if (text == NULL) {
+        return false; // Invalid text pointer, do nothing
+    }
 
-    /* TODO: Implement multi-character text rendering with newline handling. */
-    return false;
+    // Validate starting coordinates
+    if (!check_font_coordinates(framebuffer, x, y, font)) {
+        return false; // Starting coordinates would cause first character to be out of bounds, do nothing
+    }
+
+    uint16_t cursor_x = x;
+    uint16_t cursor_y = y;
+
+    // Iterate through characters in string and draw them sequentially
+    while (*text) { // Loop until null terminator
+        char character = *text;
+
+        // Check if character can be drawn at current cursor position
+        if (!check_font_coordinates(framebuffer, cursor_x, cursor_y, font)) {
+            if (!line_wrap) {
+                return false; // Out of bounds and line wrapping disabled, stop drawing
+            }
+            // Try wrapping to next line if current character doesn't fit
+            cursor_x = x; // Reset to leftmost column
+            switch(font)
+            {
+                case ILI9488_FONT_6X8:
+                    cursor_y += ili9488_font_6x8_height_pixels; // Move down by font height
+                    break;
+                case ILI9488_FONT_8X12:
+                    cursor_y += ili9488_font_8x12_height_pixels; // Move down by font height
+                    break;
+                default:
+                    return false; // Unsupported font, do nothing
+            }
+            cursor_y += wrapping_padding_pixels; // Add additional vertical padding if specified
+            // Check if wrapped position is valid
+            if (!check_font_coordinates(framebuffer, cursor_x, cursor_y, font)) {
+                return false; // No more space to draw, stop drawing
+            }
+        }
+
+        // Draw character
+        if (!gfx_draw_char(framebuffer, character, cursor_x, cursor_y, color_rgb565, font)) {
+            return false; // Failed to draw character (e.g. unsupported character), stop drawing
+        }
+
+        // Move cursor to the right for next character
+        switch(font)
+        {
+            case ILI9488_FONT_6X8:
+                cursor_x += ili9488_font_6x8_width_pixels;
+                break;
+            case ILI9488_FONT_8X12:
+                cursor_x += ili9488_font_8x12_width_pixels;
+                break;
+            default:
+                return false; // Unsupported font, do nothing
+        }
+
+        text++; // Move to next character in string
+    }
+
+    return true;
 }
 
 
