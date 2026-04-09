@@ -1,5 +1,36 @@
-// Array of 95 ASCII Glyphs (32-126) for a 8x12 pixel font, stored as an array of binary values (8x12x95 array)
+#ifndef ILI9488_FNT_H
+#define ILI9488_FNT_H
 
-// Array of 95 ASCII Glyphs (32-126) for a 6x8 pixel font, stored as an array of binary values (6x8x95 array)
+#include <stdint.h>
 
-// Array of 95 ASCII Glyphs (32-126) for a 5x7 pixel font, stored as an array of binary values (5x7x95 array)
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define ILI9488_FONT_FIRST_CHAR 32
+#define ILI9488_FONT_LAST_CHAR 126
+#define ILI9488_FONT_GLYPH_COUNT 95
+
+/*
+ * Array of 95 ASCII Glyphs (32-126) for an 8x12 pixel font.
+ * Each glyph is 12 rows, one byte per row (MSB = leftmost pixel).
+ */
+extern const uint8_t ili9488_font_8x12[ILI9488_FONT_GLYPH_COUNT][12];
+
+/*
+ * Array of 95 ASCII Glyphs (32-126) for a 6x8 pixel font.
+ * Each glyph is 8 rows, one byte per row.
+ */
+extern const uint8_t ili9488_font_6x8[ILI9488_FONT_GLYPH_COUNT][8];
+
+/*
+ * Array of 95 ASCII Glyphs (32-126) for a 5x7 pixel font.
+ * Each glyph is 7 rows, one byte per row.
+ */
+extern const uint8_t ili9488_font_5x7[ILI9488_FONT_GLYPH_COUNT][7];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
