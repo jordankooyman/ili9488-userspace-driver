@@ -11,9 +11,7 @@
  * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
 
- // Next ToDo: Add text drawing library, then add text to demo
- // Final ToDo: Review and clean up all code, finalize comments and documentation (readme and wiki), and prepare for final project submission
-
+ 
 #include "ili9488_gfx.h"
 #include "ili9488_hal.h"
 #include <stdio.h>
@@ -55,6 +53,8 @@ const hal_rotation_t display_rotation = ROTATION_270_COUNTERCLOKWISE;
 #define STEP_PIXELS    12U
 #define TEXT_X (DIRTY_BOX_SIZE + PATH_MARGIN + 16U)
 #define TEXT_Y (DIRTY_BOX_SIZE + PATH_MARGIN + 20U)
+const char *demo_text = "Hello ECEN-5713!";
+const ili9488_font_t demo_font = ILI9488_FONT_8X12;
 
 #define FULL_FILL_HOLD_MS         170U
 #define FULL_FILL_SHOW_COUNT      2U
@@ -283,7 +283,7 @@ int main(void)
                 return EXIT_FAILURE;
             }
 
-            gfx_draw_string(&framebuffer, "Hello, ECEN-5713!", TEXT_X, TEXT_Y, false, 0, COLOR_TEXT, ILI9488_FONT_8X12);
+            gfx_draw_string(&framebuffer, demo_text, TEXT_X, TEXT_Y, false, 0, COLOR_TEXT, demo_font);
 
             if (!gfx_draw_pixel(&framebuffer, pixel_x, pixel_y, colors[pixel_color_index].color)) {
                 fprintf(stderr, "Error: single-pixel draw failed at (%u,%u)\n", pixel_x, pixel_y);
