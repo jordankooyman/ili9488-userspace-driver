@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+
 /* RGB565 color values */
 #define COLOR_RED     0xF800U
 #define COLOR_GREEN   0x07E0U
@@ -36,9 +37,14 @@
 #define DISPLAY_WIDTH  ILI9488_GFX_DEFAULT_WIDTH
 #define DISPLAY_HEIGHT ILI9488_GFX_DEFAULT_HEIGHT
 
-#define FRAME_DELAY_MS 70U
-#define DIRTY_BOX_SIZE 42U
+#define FRAME_DELAY_MS 200U
+#define DIRTY_BOX_SIZE 108U
 #define PATH_MARGIN    24U
+#define STEP_PIXELS    12U
+
+#define FULL_FILL_INTERVAL_FRAMES 120U
+#define FULL_FILL_HOLD_MS         170U
+#define FULL_FILL_SHOW_COUNT      3U
 
 typedef enum {
     MOVE_RIGHT = 0,
@@ -125,9 +131,32 @@ int main(void)
     uint16_t box_x = path_left;
     uint16_t box_y = path_top;
     int color_index = 0;
+    int pixel_color_index = 0;
     move_direction_t direction = MOVE_RIGHT;
 
+    uint16_t pixel_x = DISPLAY_WIDTH / 2U;
+    uint16_t pixel_y = DISPLAY_HEIGHT / 2U;
+    int16_t pixel_dx = (int16_t)STEP_PIXELS;
+    int16_t pixel_dy = (int16_t)STEP_PIXELS;
+    unsigned int frame_count = 0U;
+
     while (1) {
+        if (frame_count > 0U && (frame_count % FULL_FILL_INTERVAL_FRAMES) == 0U) {
+            unsigned int full_fill_index;
+            for (full_fill_index = 0U; full_fill_index < FULL_FILL_SHOW_COUNT; full_fill_index++) {
+                int fill_color_index = (color_index + (int)full_fill_index) % color_count;
+                printf("  Full fill: %s\n", colors[fill_color_index].name);
+                if (!gfx_fill(&framebuffer, colors[fill_color_index].color) || !gfx_flush(&framebuffer)) {
+                    fprintf(stderr, "Error: full-screen fill failed while drawing %s\n", colors[fill_color_index].name);
+                    gfx_framebuffer_unbind(&framebuffer);
+                    free(fb_storage);
+                    hal_display_deinitialize();
+                    return EXIT_FAILURE;
+                }
+                usleep(FULL_FILL_HOLD_MS * 1000U);
+            }
+        }
+
         uint16_t box_x2 = box_x + DIRTY_BOX_SIZE - 1U;
         uint16_t box_y2 = box_y + DIRTY_BOX_SIZE - 1U;
 
@@ -147,43 +176,84 @@ int main(void)
             return EXIT_FAILURE;
         }
 
+        /* Single pixel demo: moving pixel that bounces across the full display. */
+        if (!gfx_draw_pixel(&framebuffer, pixel_x, pixel_y, colors[pixel_color_index].color)) {
+            fprintf(stderr, "Error: single-pixel draw failed at (%u,%u)\n", pixel_x, pixel_y);
+            gfx_framebuffer_unbind(&framebuffer);
+            free(fb_storage);
+            hal_display_deinitialize();
+            return EXIT_FAILURE;
+        }
+
+        if (!gfx_flush_dirty(&framebuffer)) {
+            fprintf(stderr, "Error: dirty flush failed during single-pixel draw\n");
+            gfx_framebuffer_unbind(&framebuffer);
+            free(fb_storage);
+            hal_display_deinitialize();
+            return EXIT_FAILURE;
+        }
+
         color_index = (color_index + 1) % color_count;
+        pixel_color_index = (pixel_color_index + 1) % color_count;
 
         switch (direction) {
         case MOVE_RIGHT:
-            if (box_x < path_right) {
-                box_x++;
+            if ((uint16_t)(path_right - box_x) >= STEP_PIXELS) {
+                box_x = (uint16_t)(box_x + STEP_PIXELS);
             } else {
+                box_x = path_right;
                 direction = MOVE_DOWN;
-                box_y++;
             }
             break;
         case MOVE_DOWN:
-            if (box_y < path_bottom) {
-                box_y++;
+            if ((uint16_t)(path_bottom - box_y) >= STEP_PIXELS) {
+                box_y = (uint16_t)(box_y + STEP_PIXELS);
             } else {
+                box_y = path_bottom;
                 direction = MOVE_LEFT;
-                box_x--;
             }
             break;
         case MOVE_LEFT:
-            if (box_x > path_left) {
-                box_x--;
+            if ((uint16_t)(box_x - path_left) >= STEP_PIXELS) {
+                box_x = (uint16_t)(box_x - STEP_PIXELS);
             } else {
+                box_x = path_left;
                 direction = MOVE_UP;
-                box_y--;
             }
             break;
         case MOVE_UP:
         default:
-            if (box_y > path_top) {
-                box_y--;
+            if ((uint16_t)(box_y - path_top) >= STEP_PIXELS) {
+                box_y = (uint16_t)(box_y - STEP_PIXELS);
             } else {
+                box_y = path_top;
                 direction = MOVE_RIGHT;
-                box_x++;
             }
             break;
         }
+
+        int32_t next_pixel_x = (int32_t)pixel_x + pixel_dx;
+        int32_t next_pixel_y = (int32_t)pixel_y + pixel_dy;
+
+        if (next_pixel_x < 0) {
+            next_pixel_x = 0;
+            pixel_dx = (int16_t)(-pixel_dx);
+        } else if (next_pixel_x >= (int32_t)DISPLAY_WIDTH) {
+            next_pixel_x = (int32_t)DISPLAY_WIDTH - 1;
+            pixel_dx = (int16_t)(-pixel_dx);
+        }
+
+        if (next_pixel_y < 0) {
+            next_pixel_y = 0;
+            pixel_dy = (int16_t)(-pixel_dy);
+        } else if (next_pixel_y >= (int32_t)DISPLAY_HEIGHT) {
+            next_pixel_y = (int32_t)DISPLAY_HEIGHT - 1;
+            pixel_dy = (int16_t)(-pixel_dy);
+        }
+
+        pixel_x = (uint16_t)next_pixel_x;
+        pixel_y = (uint16_t)next_pixel_y;
+        frame_count++;
 
         usleep(FRAME_DELAY_MS * 1000U);
     }
