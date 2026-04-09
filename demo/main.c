@@ -2,8 +2,7 @@
  * @file main.c
  * @brief ILI9488 Color Fill Demo
  *
- * Cycles through solid colors on a 320x480 ILI9488 display connected to a
- * Raspberry Pi 4B via SPI0:
+ * Cycles through solid colors on a 320x480 ILI9488 display connected to a Raspberry Pi 4B via SPI0:
  *   SPI device : /dev/spidev0.0  (10 MHz)
  *   RESET GPIO : BCM 24 (Pin 18)
  *   D/C GPIO   : BCM 25 (Pin 22)
@@ -11,6 +10,12 @@
  *
  * AI Usage Disclaimer: This file was mostly outlined then generated using AI tools. See ./AI_chats for the full conversation logs as best as could be exported.
  */
+
+ // Note: Next ToDo: Update demo to use framebuffer API, doing a dirty region animation with color changes to show smearing and moving in a square
+ // Also ToDo: Add something to do the single pixel draw demo
+ // After ToDo: Add Line drawing to demo
+ // Then ToDo: Add text drawing library, then add text to demo
+ // Final ToDo: Review and clean up all code, finalize comments and documentation (readme and wiki), and prepare for final project submission
 
 #include "ili9488_gfx.h"
 #include "ili9488_hal.h"
@@ -56,7 +61,7 @@ int main(void)
         { COLOR_BLACK,   "Black"   },
         { COLOR_YELLOW,  "Yellow"  },
         { COLOR_CYAN,    "Cyan"    },
-        { COLOR_MAGENTA, "Magenta" },
+        { COLOR_MAGENTA, "Magenta" }
     };
 
     int n = (int)(sizeof(colors) / sizeof(colors[0]));
