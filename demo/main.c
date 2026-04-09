@@ -22,6 +22,8 @@
 #include <unistd.h>
 
 
+const hal_rotation_t display_rotation = ROTATION_270_COUNTERCLOKWISE;
+
 /* RGB565 color values */
 #define COLOR_RED     0xF800U
 #define COLOR_GREEN   0x07E0U
@@ -35,9 +37,7 @@
 #define COLOR_PURPLE  0x8010U
 #define COLOR_LIME    0x87E0U
 #define COLOR_SILVER  0xC618U
-
-#define DISPLAY_WIDTH  ILI9488_GFX_DEFAULT_WIDTH
-#define DISPLAY_HEIGHT ILI9488_GFX_DEFAULT_HEIGHT
+#define COLOR_TEXT    0xC819U
 
 #ifndef DEMO_DEBUG_PRINTS
 #define DEMO_DEBUG_PRINTS 0
@@ -53,6 +53,8 @@
 #define DIRTY_BOX_SIZE 108U
 #define PATH_MARGIN    24U
 #define STEP_PIXELS    12U
+#define TEXT_X (DIRTY_BOX_SIZE + PATH_MARGIN + 16U)
+#define TEXT_Y (DIRTY_BOX_SIZE + PATH_MARGIN + 20U)
 
 #define FULL_FILL_HOLD_MS         170U
 #define FULL_FILL_SHOW_COUNT      2U
@@ -119,18 +121,30 @@ static void rectangle_position_from_distance(uint32_t distance,
     }
 }
 
+static bool display_rotation_swaps_axes(hal_rotation_t rotation)
+{
+    return rotation == ROTATION_90_CLOCKWISE || rotation == ROTATION_270_COUNTERCLOKWISE;
+}
+
 int main(void)
 {
     DEMO_DEBUG_PRINTF("ILI9488 Demo\n");
 
-    if (!hal_display_initialize(PIXEL_FORMAT_18BIT, ROTATION_0_NORMAL)) {
+    const uint16_t display_width = display_rotation_swaps_axes(display_rotation)
+                                       ? ILI9488_GFX_DEFAULT_HEIGHT
+                                       : ILI9488_GFX_DEFAULT_WIDTH;
+    const uint16_t display_height = display_rotation_swaps_axes(display_rotation)
+                                        ? ILI9488_GFX_DEFAULT_WIDTH
+                                        : ILI9488_GFX_DEFAULT_HEIGHT;
+
+    if (!hal_display_initialize(PIXEL_FORMAT_18BIT, display_rotation)) {
         fprintf(stderr, "Error: display initialisation failed\n");
         return EXIT_FAILURE;
     }
 
     DEMO_DEBUG_PRINTF("Display ready -- starting dirty-region smear demo\n");
 
-    size_t fb_pixels = gfx_framebuffer_required_pixels(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    size_t fb_pixels = gfx_framebuffer_required_pixels(display_width, display_height);
     if (fb_pixels == 0U) {
         fprintf(stderr, "Error: invalid framebuffer dimensions\n");
         hal_display_deinitialize();
@@ -148,8 +162,8 @@ int main(void)
     if (!gfx_framebuffer_bind(&framebuffer,
                               fb_storage,
                               fb_pixels,
-                              DISPLAY_WIDTH,
-                              DISPLAY_HEIGHT,
+                              display_width,
+                              display_height,
                               0U)) {
         fprintf(stderr, "Error: framebuffer bind failed\n");
         free(fb_storage);
@@ -187,8 +201,8 @@ int main(void)
 
     uint16_t path_left = PATH_MARGIN;
     uint16_t path_top = PATH_MARGIN;
-    uint16_t path_right = DISPLAY_WIDTH - PATH_MARGIN - DIRTY_BOX_SIZE;
-    uint16_t path_bottom = DISPLAY_HEIGHT - PATH_MARGIN - DIRTY_BOX_SIZE;
+    uint16_t path_right = display_width - PATH_MARGIN - DIRTY_BOX_SIZE;
+    uint16_t path_bottom = display_height - PATH_MARGIN - DIRTY_BOX_SIZE;
 
     if (path_right <= path_left || path_bottom <= path_top) {
         fprintf(stderr, "Error: dirty region path does not fit display\n");
@@ -203,8 +217,8 @@ int main(void)
     int color_index = 0;
     int pixel_color_index = 0;
 
-    uint16_t pixel_x = DISPLAY_WIDTH / 2U;
-    uint16_t pixel_y = DISPLAY_HEIGHT / 2U;
+    uint16_t pixel_x = display_width / 2U;
+    uint16_t pixel_y = display_height / 2U;
     int16_t pixel_dx = (int16_t)STEP_PIXELS;
     int16_t pixel_dy = (int16_t)STEP_PIXELS;
     demo_phase_t phase = DEMO_PHASE_RECTANGLE;
@@ -212,17 +226,17 @@ int main(void)
     unsigned int fill_color_cursor = 0U;
     bool starburst_phase_started = false;
 
-    uint16_t center_x = DISPLAY_WIDTH / 2U;
-    uint16_t center_y = DISPLAY_HEIGHT / 2U;
+    uint16_t center_x = display_width / 2U;
+    uint16_t center_y = display_height / 2U;
 
     uint16_t long_left = 0U;
     uint16_t long_top = 0U;
-    uint16_t long_right = DISPLAY_WIDTH - 1U;
-    uint16_t long_bottom = DISPLAY_HEIGHT - 1U;
+    uint16_t long_right = display_width - 1U;
+    uint16_t long_bottom = display_height - 1U;
     uint32_t long_perimeter = 2U * ((uint32_t)(long_right - long_left) + (uint32_t)(long_bottom - long_top));
 
-    uint16_t short_half_width = DISPLAY_WIDTH / 8U;
-    uint16_t short_half_height = DISPLAY_HEIGHT / 8U;
+    uint16_t short_half_width = display_width / 8U;
+    uint16_t short_half_height = display_height / 8U;
     uint16_t short_left = center_x - short_half_width;
     uint16_t short_top = center_y - short_half_height;
     uint16_t short_right = center_x + short_half_width;
@@ -269,9 +283,7 @@ int main(void)
                 return EXIT_FAILURE;
             }
 
-            /* Placeholder for future text rendering API call:
-             * Draw centered text "Hello ECEN-5713" during rectangle phase.
-             */
+            gfx_draw_string(&framebuffer, "Hello, ECEN-5713!", TEXT_X, TEXT_Y, false, 0, COLOR_TEXT, ILI9488_FONT_8X12);
 
             if (!gfx_draw_pixel(&framebuffer, pixel_x, pixel_y, colors[pixel_color_index].color)) {
                 fprintf(stderr, "Error: single-pixel draw failed at (%u,%u)\n", pixel_x, pixel_y);
@@ -426,16 +438,16 @@ int main(void)
             if (next_pixel_x < 0) {
                 next_pixel_x = 0;
                 pixel_dx = (int16_t)(-pixel_dx);
-            } else if (next_pixel_x >= (int32_t)DISPLAY_WIDTH) {
-                next_pixel_x = (int32_t)DISPLAY_WIDTH - 1;
+            } else if (next_pixel_x >= (int32_t)display_width) {
+                next_pixel_x = (int32_t)display_width - 1;
                 pixel_dx = (int16_t)(-pixel_dx);
             }
 
             if (next_pixel_y < 0) {
                 next_pixel_y = 0;
                 pixel_dy = (int16_t)(-pixel_dy);
-            } else if (next_pixel_y >= (int32_t)DISPLAY_HEIGHT) {
-                next_pixel_y = (int32_t)DISPLAY_HEIGHT - 1;
+            } else if (next_pixel_y >= (int32_t)display_height) {
+                next_pixel_y = (int32_t)display_height - 1;
                 pixel_dy = (int16_t)(-pixel_dy);
             }
 

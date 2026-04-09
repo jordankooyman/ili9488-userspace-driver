@@ -271,19 +271,6 @@ bool gfx_draw_char(gfx_framebuffer_t *framebuffer,
                    ili9488_font_t font);
 
 /**
- * @brief Check if a character can be drawn at given coordinates with specified font without going out of bounds.
- * @param framebuffer Framebuffer object to check against
- * @param x Leftmost destination column
- * @param y Top destination row
- * @param font Font to use for rendering
- * @return true if character would be fully on the display, false if it would be partially or fully out of bounds, or if font is unsupported
- */
-bool check_font_coordinates(const gfx_framebuffer_t *framebuffer,
-                            uint16_t x,
-                            uint16_t y, 
-                            ili9488_font_t font);
-
-/**
  * @brief Draw a null-terminated string using built-in font tables.
  * Includes optional line wrapping with variable vertical padding.
  * Will stop drawing if text exceeds display bounds (either horizontally or vertically).

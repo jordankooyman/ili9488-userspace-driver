@@ -11,6 +11,19 @@
 #include "ili9488_hal.h"
 #include <stdlib.h>
 
+/**
+ * @brief Check if a character can be drawn at given coordinates with specified font without going out of bounds.
+ * @param framebuffer Framebuffer object to check against
+ * @param x Leftmost destination column
+ * @param y Top destination row
+ * @param font Font to use for rendering
+ * @return true if character would be fully on the display, false if it would be partially or fully out of bounds, or if font is unsupported
+ */
+bool check_font_coordinates(const gfx_framebuffer_t *framebuffer,
+                            uint16_t x,
+                            uint16_t y, 
+                            ili9488_font_t font);
+
 
 /* ============================================================================
  * Display-Direct Drawing (Bypass Framebuffer)
@@ -74,13 +87,23 @@ bool gfx_draw_pixel_direct(uint16_t x, uint16_t y, uint16_t color_rgb565)
  * Framebuffer Lifecycle (User-managed Storage)
  * ========================================================================== */
 
+static bool framebuffer_dimensions_supported(uint16_t width, uint16_t height)
+{
+    if (width == 0U || height == 0U) {
+        return false;
+    }
+
+    return ((width <= ILI9488_GFX_DEFAULT_WIDTH && height <= ILI9488_GFX_DEFAULT_HEIGHT) ||
+            (width <= ILI9488_GFX_DEFAULT_HEIGHT && height <= ILI9488_GFX_DEFAULT_WIDTH));
+}
+
 /**
  * @brief Return required pixel count for width/height.
  * @return Number of pixels required for given dimensions, or 0 if invalid
  */
 size_t gfx_framebuffer_required_pixels(uint16_t width, uint16_t height)
 {
-    if (width > ILI9488_GFX_DEFAULT_WIDTH || height > ILI9488_GFX_DEFAULT_HEIGHT) {
+    if (!framebuffer_dimensions_supported(width, height)) {
         return 0; // Invalid dimensions
     }
     return width * height; // If either dimension is zero, this will correctly return 0
@@ -122,7 +145,7 @@ bool gfx_framebuffer_bind(gfx_framebuffer_t *framebuffer,
     }
 
     // Validate dimensions (must be > 0 and within display limits)
-    if (width == 0 || height == 0 || width > ILI9488_GFX_DEFAULT_WIDTH || height > ILI9488_GFX_DEFAULT_HEIGHT) {
+    if (!framebuffer_dimensions_supported(width, height)) {
         return false;
     }
 
