@@ -22,6 +22,10 @@
 /**
  * @brief Split a 16-bit address into MSB/LSB bytes (big-endian, as required by
  *        all multi-byte address parameters in the ILI9488 command set).
+ * @param address 16-bit address value to split.
+ * @param msb_byte Output pointer for the most-significant byte.
+ * @param lsb_byte Output pointer for the least-significant byte.
+ * @return None.
  */
 static inline void _address_to_bytes(uint16_t address,
                                       uint8_t *msb_byte,
@@ -45,6 +49,12 @@ static hal_pixel_format_t g_current_pixel_format = PIXEL_FORMAT_16BIT;
  * Initialization & Configuration
  * ========================================================================== */
 
+/**
+ * @brief Initialize the display hardware, controller state, and key runtime settings.
+ * @param pixel_format Transfer pixel format to configure on the panel.
+ * @param rotation Initial display rotation and memory mapping mode.
+ * @return true if initialization succeeds end-to-end; otherwise false.
+ */
 bool hal_display_initialize(hal_pixel_format_t pixel_format,
                             hal_rotation_t rotation)
 {
@@ -119,6 +129,11 @@ bool hal_display_initialize(hal_pixel_format_t pixel_format,
     return true;
 }
 
+/**
+ * @brief Power down the display path and release transport resources.
+ * @param None.
+ * @return true if deinitialization succeeds; otherwise false.
+ */
 bool hal_display_deinitialize(void)
 {
     if (!hal_display_output_control(false)) return false;
@@ -137,6 +152,11 @@ bool hal_display_deinitialize(void)
  * System Control Commands
  * ========================================================================== */
 
+/**
+ * @brief Issue a software reset command to the controller.
+ * @param reset_scope Reset scope selector (reserved by current implementation).
+ * @return true if the reset command transaction succeeds; otherwise false.
+ */
 bool hal_system_reset(hal_reset_scope_t reset_scope)
 {
     /* Software Reset — Datasheet Section 5.2.2 (0x01) */
@@ -147,6 +167,11 @@ bool hal_system_reset(hal_reset_scope_t reset_scope)
     return true;
 }
 
+/**
+ * @brief Enter or exit sleep mode.
+ * @param enable true to enter sleep mode, false to exit sleep mode.
+ * @return true if the sleep state change succeeds; otherwise false.
+ */
 bool hal_power_sleep_mode_set(bool enable)
 {
     if (enable) {
@@ -161,6 +186,11 @@ bool hal_power_sleep_mode_set(bool enable)
     return true;
 }
 
+/**
+ * @brief Exit sleep mode with required wake timing delay.
+ * @param None.
+ * @return true if the wake command succeeds; otherwise false.
+ */
 bool hal_power_sleep_exit(void)
 {
     /* Sleep Out — Datasheet Section 5.2.13 (0x11) */
@@ -169,6 +199,11 @@ bool hal_power_sleep_exit(void)
     return true;
 }
 
+/**
+ * @brief Enable or disable display output.
+ * @param enabled true to send Display ON, false to send Display OFF.
+ * @return true if the command succeeds; otherwise false.
+ */
 bool hal_display_output_control(bool enabled)
 {
     /* Display On (0x29) / Display Off (0x28) — Datasheet Section 5.2.20–5.2.21 */
@@ -176,6 +211,11 @@ bool hal_display_output_control(bool enabled)
     return spi_transmit_command(command);
 }
 
+/**
+ * @brief Apply one of the high-level power state modes.
+ * @param power_state Requested abstract power state.
+ * @return true if the mode transition succeeds; otherwise false.
+ */
 bool hal_power_set_state(hal_power_state_t power_state)
 {
     switch (power_state) {
@@ -198,6 +238,11 @@ bool hal_power_set_state(hal_power_state_t power_state)
  * Display Configuration Commands
  * ========================================================================== */
 
+/**
+ * @brief Configure panel transfer pixel format.
+ * @param pixel_format Pixel format enum value to write.
+ * @return true if the command succeeds; otherwise false.
+ */
 bool hal_pixel_format_set(hal_pixel_format_t pixel_format)
 {
     /* Interface Pixel Format — Datasheet Section 5.2.34 (0x3A)
@@ -211,6 +256,13 @@ bool hal_pixel_format_set(hal_pixel_format_t pixel_format)
     return true;
 }
 
+/**
+ * @brief Configure display rotation plus optional horizontal/vertical flips.
+ * @param rotation Base rotation preset.
+ * @param horizontal_flip Horizontal direction override.
+ * @param vertical_flip Vertical direction override.
+ * @return true if register programming succeeds; otherwise false.
+ */
 bool hal_display_rotation_set(hal_rotation_t rotation,
                               hal_horizontal_direction_t horizontal_flip,
                               hal_vertical_direction_t vertical_flip)
@@ -239,6 +291,11 @@ bool hal_display_rotation_set(hal_rotation_t rotation,
     return true;
 }
 
+/**
+ * @brief Configure RGB/BGR byte order bit in MADCTL.
+ * @param byte_order Desired color byte order mode.
+ * @return true if register programming succeeds; otherwise false.
+ */
 bool hal_color_byte_order_set(hal_byte_order_t byte_order)
 {
     /* Memory Access Control — Bit 3 (BGR) — Datasheet Section 5.2.30 (0x36) */
@@ -257,6 +314,11 @@ bool hal_color_byte_order_set(hal_byte_order_t byte_order)
     return true;
 }
 
+/**
+ * @brief Configure transfer stepping mode in MADCTL.
+ * @param transfer_mode Desired transfer mode enum.
+ * @return true if register programming succeeds; otherwise false.
+ */
 bool hal_transfer_mode_set(hal_transfer_mode_t transfer_mode)
 {
     /* Memory Access Control — Bit 5 (MV) — Datasheet Section 5.2.30 (0x36) */
@@ -275,6 +337,11 @@ bool hal_transfer_mode_set(hal_transfer_mode_t transfer_mode)
     return true;
 }
 
+/**
+ * @brief Read the cached display configuration byte maintained by HAL.
+ * @param config_byte Output pointer receiving cached MADCTL value.
+ * @return true if output pointer is valid; otherwise false.
+ */
 bool hal_display_config_read(uint8_t *config_byte)
 {
     if (config_byte == NULL) return false;
@@ -286,6 +353,12 @@ bool hal_display_config_read(uint8_t *config_byte)
  * Memory Address & Access Commands
  * ========================================================================== */
 
+/**
+ * @brief Set active column address range.
+ * @param start_column Inclusive start column.
+ * @param end_column Inclusive end column.
+ * @return true if command transaction succeeds; otherwise false.
+ */
 bool hal_column_address_set(uint16_t start_column, uint16_t end_column)
 {
     /* Column Address Set — Datasheet Section 5.2.22 (0x2A)
@@ -299,6 +372,12 @@ bool hal_column_address_set(uint16_t start_column, uint16_t end_column)
     return true;
 }
 
+/**
+ * @brief Set active row address range.
+ * @param start_row Inclusive start row.
+ * @param end_row Inclusive end row.
+ * @return true if command transaction succeeds; otherwise false.
+ */
 bool hal_row_address_set(uint16_t start_row, uint16_t end_row)
 {
     /* Page Address Set — Datasheet Section 5.2.23 (0x2B)
@@ -312,6 +391,14 @@ bool hal_row_address_set(uint16_t start_row, uint16_t end_row)
     return true;
 }
 
+/**
+ * @brief Set both column and row address ranges for a drawing window.
+ * @param x_start Inclusive start column.
+ * @param x_end Inclusive end column.
+ * @param y_start Inclusive start row.
+ * @param y_end Inclusive end row.
+ * @return true if both address commands succeed; otherwise false.
+ */
 bool hal_window_address_set(uint16_t x_start, uint16_t x_end,
                             uint16_t y_start, uint16_t y_end)
 {
@@ -320,6 +407,11 @@ bool hal_window_address_set(uint16_t x_start, uint16_t x_end,
     return true;
 }
 
+/**
+ * @brief Send memory-write start command.
+ * @param None.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_gram_write_start(void)
 {
     /* Memory Write — Datasheet Section 5.2.24 (0x2C)
@@ -327,6 +419,11 @@ bool hal_gram_write_start(void)
     return spi_transmit_command(0x2C);
 }
 
+/**
+ * @brief Send memory-read start command.
+ * @param None.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_gram_read_start(void)
 {
     /* Memory Read — Datasheet Section 5.2.25 (0x2E) */
@@ -337,6 +434,13 @@ bool hal_gram_read_start(void)
  * Pixel Data Transmission
  * ========================================================================== */
 
+/**
+ * @brief Stream pixel payload to GRAM in the selected transfer format.
+ * @param pixel_buffer Pointer to pixel payload bytes.
+ * @param pixel_count Number of pixels represented by pixel_buffer.
+ * @param pixel_format Transfer format describing bytes per pixel.
+ * @return true if transmit succeeds; otherwise false.
+ */
 bool hal_gram_write_pixels(const uint8_t *pixel_buffer,
                            uint32_t pixel_count,
                            hal_pixel_format_t pixel_format)
@@ -355,6 +459,13 @@ bool hal_gram_write_pixels(const uint8_t *pixel_buffer,
     return spi_transmit_bulkdata(pixel_buffer, (size_t)pixel_count * bytes_per_pixel);
 }
 
+/**
+ * @brief Read pixel payload from GRAM in the selected transfer format.
+ * @param pixel_buffer Destination buffer for received pixel bytes.
+ * @param pixel_count Number of pixels to read.
+ * @param pixel_format Transfer format describing bytes per pixel.
+ * @return true if receive succeeds; otherwise false.
+ */
 bool hal_gram_read_pixels(uint8_t *pixel_buffer,
                           uint32_t pixel_count,
                           hal_pixel_format_t pixel_format)
@@ -374,6 +485,15 @@ bool hal_gram_read_pixels(uint8_t *pixel_buffer,
                             (size_t)pixel_count * bytes_per_pixel);
 }
 
+/**
+ * @brief Fill one rectangular window with a single RGB565 color.
+ * @param x_start Inclusive start column.
+ * @param x_end Inclusive end column.
+ * @param y_start Inclusive start row.
+ * @param y_end Inclusive end row.
+ * @param color_rgb565 RGB565 color value to write.
+ * @return true if fill operation completes; otherwise false.
+ */
 bool hal_fill_rectangle_solid(uint16_t x_start, uint16_t x_end,
                               uint16_t y_start, uint16_t y_end,
                               uint16_t color_rgb565)
@@ -432,6 +552,11 @@ bool hal_fill_rectangle_solid(uint16_t x_start, uint16_t x_end,
  * Power Supply & Voltage Control
  * ========================================================================== */
 
+/**
+ * @brief Program GVDD setting.
+ * @param gvdd_voltage Controller register value for GVDD.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_power_gvdd_set(uint8_t gvdd_voltage)
 {
     /* Power Control 1 — Datasheet Section 5.3.12 (0xC0) */
@@ -440,6 +565,11 @@ bool hal_power_gvdd_set(uint8_t gvdd_voltage)
     return true;
 }
 
+/**
+ * @brief Program VCI setting.
+ * @param vci_voltage Controller register value for VCI.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_power_vci_set(uint8_t vci_voltage)
 {
     /* Power Control 2 — Datasheet Section 5.3.13 (0xC1) */
@@ -448,6 +578,12 @@ bool hal_power_vci_set(uint8_t vci_voltage)
     return true;
 }
 
+/**
+ * @brief Program VGH and VGL settings.
+ * @param vgh_voltage Controller register value for positive gate voltage.
+ * @param vgl_voltage Controller register value for negative gate voltage.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_power_vgh_vgl_set(uint8_t vgh_voltage, uint8_t vgl_voltage)
 {
     /* VCOM Control — Datasheet Section 5.3.17 (0xC5)
@@ -459,6 +595,11 @@ bool hal_power_vgh_vgl_set(uint8_t vgh_voltage, uint8_t vgl_voltage)
     return true;
 }
 
+/**
+ * @brief Program VCOMH setting.
+ * @param vcomh_voltage Controller register value for VCOMH.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_power_vcomh_set(uint8_t vcomh_voltage)
 {
     if (!spi_transmit_command(0xBB)) return false;
@@ -470,6 +611,11 @@ bool hal_power_vcomh_set(uint8_t vcomh_voltage)
  * Display Timing & Frequency Control
  * ========================================================================== */
 
+/**
+ * @brief Program frame-rate control value.
+ * @param frame_rate_code Controller register value for frame timing.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_frame_rate_set(uint8_t frame_rate_code)
 {
     /* Frame Rate Control (Normal Mode) — Datasheet Section 5.3.2 (0xB1) */
@@ -478,6 +624,11 @@ bool hal_frame_rate_set(uint8_t frame_rate_code)
     return true;
 }
 
+/**
+ * @brief Program oscillator/interface control value.
+ * @param osc_control_code Controller register value for oscillator control.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_oscillator_frequency_set(uint8_t osc_control_code)
 {
     /* Interface Mode Control — Datasheet Section 5.3.1 (0xB0)
@@ -487,6 +638,11 @@ bool hal_oscillator_frequency_set(uint8_t osc_control_code)
     return true;
 }
 
+/**
+ * @brief Program display inversion control register.
+ * @param inversion_control_code Controller register value for inversion behavior.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_display_inversion_control_set(uint8_t inversion_control_code)
 {
     /* Display Inversion Control — Datasheet Section 5.3.5 (0xB4) */
@@ -495,6 +651,13 @@ bool hal_display_inversion_control_set(uint8_t inversion_control_code)
     return true;
 }
 
+/**
+ * @brief Program display function control register triplet.
+ * @param parameter1 First control byte.
+ * @param parameter2 Second control byte.
+ * @param parameter3 Third control byte.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_display_function_control_set(uint8_t parameter1,
                                       uint8_t parameter2,
                                       uint8_t parameter3)
@@ -507,6 +670,11 @@ bool hal_display_function_control_set(uint8_t parameter1,
     return true;
 }
 
+/**
+ * @brief Program entry mode register.
+ * @param entry_mode_code Controller register value for entry mode behavior.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_entry_mode_set(uint8_t entry_mode_code)
 {
     /* Entry Mode Set — Datasheet Section 5.3.8 (0xB7) */
@@ -519,6 +687,11 @@ bool hal_entry_mode_set(uint8_t entry_mode_code)
  * Gamma Correction
  * ========================================================================== */
 
+/**
+ * @brief Select one predefined gamma curve.
+ * @param gamma_curve Gamma curve selector enum value.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_gamma_curve_select(hal_gamma_curve_t gamma_curve)
 {
     /* Gamma Set — Datasheet Section 5.2.26 (0x26)
@@ -530,6 +703,12 @@ bool hal_gamma_curve_select(hal_gamma_curve_t gamma_curve)
     return true;
 }
 
+/**
+ * @brief Program positive and negative gamma tables.
+ * @param pos_gamma_table Pointer to 15-byte positive gamma table.
+ * @param neg_gamma_table Pointer to 15-byte negative gamma table.
+ * @return true if both tables are written successfully; otherwise false.
+ */
 bool hal_gamma_curve_program(const uint8_t *pos_gamma_table,
                              const uint8_t *neg_gamma_table)
 {
@@ -550,6 +729,11 @@ bool hal_gamma_curve_program(const uint8_t *pos_gamma_table,
  * Status & Information Queries
  * ========================================================================== */
 
+/**
+ * @brief Read display ID bytes and assemble ID code.
+ * @param id_code Output pointer receiving assembled ID value.
+ * @return true if read succeeds; otherwise false.
+ */
 bool hal_display_id_read(uint32_t *id_code)
 {
     /* Read ID4 — Datasheet Section 5.3.30 (0xD3)
@@ -567,6 +751,11 @@ bool hal_display_id_read(uint32_t *id_code)
     return true;
 }
 
+/**
+ * @brief Read power mode status byte.
+ * @param power_mode Output pointer receiving power mode byte.
+ * @return true if read succeeds; otherwise false.
+ */
 bool hal_power_mode_read(uint8_t *power_mode)
 {
     /* Read Display Power Mode — Datasheet Section 5.2.6 (0x0A) */
@@ -581,6 +770,11 @@ bool hal_power_mode_read(uint8_t *power_mode)
     return true;
 }
 
+/**
+ * @brief Read display status byte.
+ * @param status_byte Output pointer receiving status byte.
+ * @return true if read succeeds; otherwise false.
+ */
 bool hal_display_status_read(uint8_t *status_byte)
 {
     /* Read Display Status — Datasheet Section 5.2.5 (0x09) */
@@ -595,6 +789,11 @@ bool hal_display_status_read(uint8_t *status_byte)
     return true;
 }
 
+/**
+ * @brief Read display mode byte.
+ * @param display_mode Output pointer receiving mode byte.
+ * @return true if read succeeds; otherwise false.
+ */
 bool hal_display_mode_read(uint8_t *display_mode)
 {
     /* Read Display MADCTL — Datasheet Section 5.2.7 (0x0B) */
@@ -609,6 +808,11 @@ bool hal_display_mode_read(uint8_t *display_mode)
     return true;
 }
 
+/**
+ * @brief Read pixel format byte.
+ * @param pixel_format Output pointer receiving format byte.
+ * @return true if read succeeds; otherwise false.
+ */
 bool hal_pixel_format_read(uint8_t *pixel_format)
 {
     /* Read Display Pixel Format — Datasheet Section 5.2.8 (0x0C) */
@@ -627,6 +831,12 @@ bool hal_pixel_format_read(uint8_t *pixel_format)
  * Interface & Advanced Configuration
  * ========================================================================== */
 
+/**
+ * @brief Program interface mode control values.
+ * @param rim_code RIM control byte.
+ * @param dim_code DIM control byte.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_interface_mode_set(uint8_t rim_code, uint8_t dim_code)
 {
     uint8_t params[2] = {rim_code, dim_code};
@@ -636,6 +846,11 @@ bool hal_interface_mode_set(uint8_t rim_code, uint8_t dim_code)
     return true;
 }
 
+/**
+ * @brief Enable partial mode or return to normal mode.
+ * @param partial_area_enabled true to enable partial mode, false for normal mode.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_partial_mode_set(bool partial_area_enabled)
 {
     /* Partial Mode ON (0x12) / Normal Display Mode ON (0x13) — Datasheet Section 5.2.14–5.2.15 */
@@ -643,6 +858,13 @@ bool hal_partial_mode_set(bool partial_area_enabled)
     return spi_transmit_command(command);
 }
 
+/**
+ * @brief Define top fixed area, scroll area, and bottom fixed area.
+ * @param top_fixed_lines Number of lines in top fixed area.
+ * @param scroll_area_lines Number of lines in scrollable area.
+ * @param bottom_fixed_lines Number of lines in bottom fixed area.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_scroll_area_set(uint16_t top_fixed_lines,
                          uint16_t scroll_area_lines,
                          uint16_t bottom_fixed_lines)
@@ -659,6 +881,11 @@ bool hal_scroll_area_set(uint16_t top_fixed_lines,
     return true;
 }
 
+/**
+ * @brief Set vertical scrolling start line address.
+ * @param start_line Start line index for vertical scroll.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_scroll_start_address_set(uint16_t start_line)
 {
     /* Vertical Scrolling Start Address — Datasheet Section 5.2.31 (0x37) */
@@ -670,18 +897,33 @@ bool hal_scroll_start_address_set(uint16_t start_line)
     return true;
 }
 
+/**
+ * @brief Send normal display mode command.
+ * @param None.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_normal_display_mode_on(void)
 {
     /* Normal Display Mode ON — Datasheet Section 5.2.15 (0x13) */
     return spi_transmit_command(0x13);
 }
 
+/**
+ * @brief Send display inversion ON command.
+ * @param None.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_invert_display_mode_on(void)
 {
     /* Display Inversion ON — Datasheet Section 5.2.17 (0x21) */
     return spi_transmit_command(0x21);
 }
 
+/**
+ * @brief Enable or disable adaptive color enhancement.
+ * @param ace_enabled true to enable enhancement, false to disable.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_color_enhancement_set(bool ace_enabled)
 {
     /* Color Enhancement Control 1 — Datasheet Section 5.3.9 (0xB9) */
@@ -692,6 +934,11 @@ bool hal_color_enhancement_set(bool ace_enabled)
     return true;
 }
 
+/**
+ * @brief Configure interface write-enable mode behavior.
+ * @param wemode_enabled true to enable write-enable mode, false to disable.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_interface_control_set(bool wemode_enabled)
 {
     /* CABC Control 1 — Datasheet Section 5.3.18 (0xC6) */
@@ -702,6 +949,12 @@ bool hal_interface_control_set(bool wemode_enabled)
     return true;
 }
 
+/**
+ * @brief Configure RAM protection keying behavior.
+ * @param protection_enabled true to enable RAM protection, false to disable.
+ * @param key_code Protection key value written when protection is enabled.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_ram_protection_set(bool protection_enabled, uint8_t key_code)
 {
     /* CABC Control 3 — Datasheet Section 5.3.20 (0xC9) */
@@ -712,6 +965,12 @@ bool hal_ram_protection_set(bool protection_enabled, uint8_t key_code)
     return true;
 }
 
+/**
+ * @brief Configure optional controller GPIO behavior.
+ * @param gpio_mask Bitmask selecting GPIO channels to update.
+ * @param gpio_config Configuration value applied to selected channels.
+ * @return true if command succeeds; otherwise false.
+ */
 bool hal_gpio_configure(uint8_t gpio_mask, uint8_t gpio_config)
 {
     /* Vendor-specific adjustment sequence used by the verified TFT_eSPI init path.

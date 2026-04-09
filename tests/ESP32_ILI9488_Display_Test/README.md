@@ -36,8 +36,8 @@ sketchbook location is:
 The project folder contains:
 
 ```
-ILI9488_Test/
-    ILI9488_Test.ino
+ESP32_ILI9488_Display_Test/
+  ESP32_ILI9488_Display_Test.ino
     User_Setup.h
     README.md
     esp32_ili9488_test_setup.jpg
@@ -245,7 +245,7 @@ If Arduino IDE cannot upload to the board, enter bootloader mode manually:
 
 ## Step 8 -- Upload and Run
 
-1. Open ILI9488_Test.ino in Arduino IDE.
+1. Open ESP32_ILI9488_Display_Test.ino in Arduino IDE.
 2. Confirm the correct board and port are selected under the Tools menu.
 3. Click Upload (the right-arrow button, or Sketch > Upload).
 4. Wait for the upload to complete. The status bar will say "Done uploading."

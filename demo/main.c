@@ -1,8 +1,15 @@
 /**
  * @file main.c
- * @brief ILI9488 Color Fill Demo
+ * @brief ILI9488 framebuffer demo with rectangle path, full fills, and starburst rays.
  *
- * Cycles through solid colors on a 320x480 ILI9488 display connected to a Raspberry Pi 4B via SPI0:
+ * Runs a multi-phase animation on a 320x480 ILI9488 display connected to a
+ * Raspberry Pi 4B via SPI0:
+ *   1) Dirty-region rectangle and moving pixel over a persistent framebuffer
+ *   2) Brief full-screen color fills
+ *   3) Starburst line sweep from display center
+ *   4) Additional brief full-screen color fills, then repeat
+ *
+ * Hardware configuration:
  *   SPI device : /dev/spidev0.0  (10 MHz)
  *   RESET GPIO : BCM 24 (Pin 18)
  *   D/C GPIO   : BCM 25 (Pin 22)
@@ -70,6 +77,11 @@ typedef enum {
     DEMO_PHASE_FILLS_AFTER_STARBURST
 } demo_phase_t;
 
+/**
+ * @brief Return current monotonic time in milliseconds.
+ * @param None.
+ * @return Monotonic timestamp in milliseconds, or 0 if clock query fails.
+ */
 static uint64_t monotonic_time_ms(void)
 {
     struct timespec ts;
@@ -80,6 +92,12 @@ static uint64_t monotonic_time_ms(void)
     return ((uint64_t)ts.tv_sec * 1000U) + ((uint64_t)ts.tv_nsec / 1000000U);
 }
 
+/**
+ * @brief Sleep for the remainder of a frame interval based on elapsed frame time.
+ * @param frame_start_ms Monotonic timestamp captured at frame start.
+ * @param frame_target_ms Desired total frame duration in milliseconds.
+ * @return None.
+ */
 static void sleep_remaining_frame(uint64_t frame_start_ms, uint32_t frame_target_ms)
 {
     uint64_t frame_end_ms = monotonic_time_ms();
@@ -95,6 +113,17 @@ static void sleep_remaining_frame(uint64_t frame_start_ms, uint32_t frame_target
     }
 }
 
+/**
+ * @brief Convert a perimeter distance into a point on a rectangle boundary.
+ * @param distance Clockwise perimeter distance from the rectangle top-left corner.
+ * @param left Rectangle left boundary.
+ * @param top Rectangle top boundary.
+ * @param right Rectangle right boundary.
+ * @param bottom Rectangle bottom boundary.
+ * @param x Output pointer receiving computed x coordinate.
+ * @param y Output pointer receiving computed y coordinate.
+ * @return None.
+ */
 static void rectangle_position_from_distance(uint32_t distance,
                                              uint16_t left,
                                              uint16_t top,
@@ -121,11 +150,21 @@ static void rectangle_position_from_distance(uint32_t distance,
     }
 }
 
+/**
+ * @brief Determine whether a rotation mode swaps logical width/height axes.
+ * @param rotation Rotation enum value to evaluate.
+ * @return true when axes are swapped by the rotation mode; otherwise false.
+ */
 static bool display_rotation_swaps_axes(hal_rotation_t rotation)
 {
     return rotation == ROTATION_90_CLOCKWISE || rotation == ROTATION_270_COUNTERCLOKWISE;
 }
 
+/**
+ * @brief Run the ILI9488 userspace graphics demonstration loop.
+ * @param None.
+ * @return EXIT_SUCCESS on normal completion, EXIT_FAILURE on initialization or runtime errors.
+ */
 int main(void)
 {
     DEMO_DEBUG_PRINTF("ILI9488 Demo\n");

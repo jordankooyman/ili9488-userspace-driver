@@ -47,12 +47,24 @@ static struct gpiod_line_request *g_gpio_requests[2] = {NULL, NULL};
 static bool                 g_spi_initialized  = false;
 static spi_gpio_state_t     g_gpio_states[3];
 
+/**
+ * @brief Log a formatted errno-based error message for SPI/GPIO operations.
+ * @param context Short operation label for the failed call.
+ * @return None.
+ */
 static void spi_log_errno(const char *context)
 {
     fprintf(stderr, "[ili9488_spi] %s failed: %s (errno=%d)\n",
             context, strerror(errno), errno);
 }
 
+/**
+ * @brief Request one GPIO line as output and initialize it to a known state.
+ * @param gpio_pin Logical GPIO selector used by the driver.
+ * @param bcm_pin BCM line offset on the configured gpiochip.
+ * @param initial_state Initial output level to drive after request.
+ * @return true if the line request succeeds; otherwise false.
+ */
 static bool spi_gpio_request_output(spi_gpio_pin_t gpio_pin,
                                     unsigned int bcm_pin,
                                     spi_gpio_state_t initial_state)
@@ -134,6 +146,12 @@ cleanup:
  * SPI Bus Initialization & Configuration
  * ========================================================================== */
 
+/**
+ * @brief Initialize the SPI bus and open the gpiochip used by this driver.
+ * @param spi_device_path Filesystem path to the spidev node (for example /dev/spidev0.0).
+ * @param clock_speed_hz Requested SPI clock in Hz (clamped to controller-safe max).
+ * @return true if SPI and GPIO backends are ready; otherwise false.
+ */
 bool spi_bus_initialize(const char *spi_device_path, uint32_t clock_speed_hz)
 {
     if (g_spi_initialized || spi_device_path == NULL) {
@@ -192,6 +210,11 @@ fail_close:
     return false;
 }
 
+/**
+ * @brief Deinitialize SPI and GPIO backend resources acquired by this module.
+ * @param None.
+ * @return true when resources are fully released or were already inactive.
+ */
 bool spi_bus_deinitialize(void)
 {
     if (!g_spi_initialized) {
@@ -223,6 +246,12 @@ bool spi_bus_deinitialize(void)
  * GPIO Initialization & Control
  * ========================================================================== */
 
+/**
+ * @brief Initialize a driver GPIO pin as output and set its initial level.
+ * @param gpio_pin Logical GPIO pin selector used by the SPI abstraction.
+ * @param initial_state Initial high/low state to apply after initialization.
+ * @return true on success; otherwise false.
+ */
 bool spi_gpio_initialize(spi_gpio_pin_t gpio_pin, spi_gpio_state_t initial_state)
 {
     if (!g_spi_initialized) {
@@ -252,6 +281,12 @@ bool spi_gpio_initialize(spi_gpio_pin_t gpio_pin, spi_gpio_state_t initial_state
     return true;
 }
 
+/**
+ * @brief Set the output state of an initialized GPIO pin.
+ * @param gpio_pin Logical GPIO pin selector to update.
+ * @param state Target high/low output state.
+ * @return true if the state is applied (or tracked for CS); otherwise false.
+ */
 bool spi_gpio_set_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t state)
 {
     int rc;
@@ -307,6 +342,12 @@ bool spi_gpio_set_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t state)
     return true;
 }
 
+/**
+ * @brief Read the cached logical state for a GPIO pin.
+ * @param gpio_pin Logical GPIO pin selector to query.
+ * @param state Output pointer that receives the cached state value.
+ * @return true if the read succeeds; otherwise false.
+ */
 bool spi_gpio_read_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t *state)
 {
     if (gpio_pin >= 3 || state == NULL) {
@@ -317,6 +358,11 @@ bool spi_gpio_read_state(spi_gpio_pin_t gpio_pin, spi_gpio_state_t *state)
     return true;
 }
 
+/**
+ * @brief Release an initialized GPIO line request for one logical pin.
+ * @param gpio_pin Logical GPIO pin selector to deinitialize.
+ * @return true if the deinitialization succeeds; otherwise false.
+ */
 bool spi_gpio_deinitialize(spi_gpio_pin_t gpio_pin)
 {
     if (gpio_pin >= 3) {
@@ -339,6 +385,11 @@ bool spi_gpio_deinitialize(spi_gpio_pin_t gpio_pin)
  * SPI Transmit & Receive Operations
  * ========================================================================== */
 
+/**
+ * @brief Transmit a single command byte with D/C driven low.
+ * @param command_byte ILI9488 command opcode to send.
+ * @return true if the command transfer succeeds; otherwise false.
+ */
 bool spi_transmit_command(uint8_t command_byte)
 {
     if (!g_spi_initialized || g_spi_fd < 0) {
@@ -370,6 +421,12 @@ bool spi_transmit_command(uint8_t command_byte)
     return true;
 }
 
+/**
+ * @brief Transmit one data buffer with D/C driven high.
+ * @param data_buffer Pointer to bytes to transmit.
+ * @param byte_count Number of bytes to transmit from data_buffer.
+ * @return true if the full buffer is transmitted; otherwise false.
+ */
 bool spi_transmit_data(const uint8_t *data_buffer, size_t byte_count)
 {
     if (!g_spi_initialized || g_spi_fd < 0) {
@@ -420,6 +477,12 @@ bool spi_transmit_data(const uint8_t *data_buffer, size_t byte_count)
     return true;
 }
 
+/**
+ * @brief Receive bytes over SPI using dummy TX clocks with D/C high.
+ * @param data_buffer Destination buffer for received bytes.
+ * @param byte_count Number of bytes to read into data_buffer.
+ * @return true if the receive transfer succeeds; otherwise false.
+ */
 bool spi_receive_data(uint8_t *data_buffer, size_t byte_count)
 {
     if (!g_spi_initialized || g_spi_fd < 0) {
@@ -463,6 +526,13 @@ bool spi_receive_data(uint8_t *data_buffer, size_t byte_count)
     return ok;
 }
 
+/**
+ * @brief Transmit one command byte followed by an optional parameter payload.
+ * @param command_byte ILI9488 command opcode to send first.
+ * @param param_buffer Optional pointer to parameter bytes (may be NULL when param_count is zero).
+ * @param param_count Number of parameter bytes to send.
+ * @return true if command and parameter transfers succeed; otherwise false.
+ */
 bool spi_transmit_command_with_params(uint8_t command_byte,
                                        const uint8_t *param_buffer,
                                        size_t param_count)
@@ -480,6 +550,12 @@ bool spi_transmit_command_with_params(uint8_t command_byte,
     return true;
 }
 
+/**
+ * @brief Transmit bulk pixel or payload data using the data path.
+ * @param pixel_data Pointer to bytes to transmit.
+ * @param byte_count Number of bytes to transmit from pixel_data.
+ * @return true if the transfer succeeds; otherwise false.
+ */
 bool spi_transmit_bulkdata(const uint8_t *pixel_data, size_t byte_count)
 {
     /* Pixel data uses the same D/C=HIGH data path as parameter writes */
@@ -490,6 +566,11 @@ bool spi_transmit_bulkdata(const uint8_t *pixel_data, size_t byte_count)
  * Software Delay Utility
  * ========================================================================== */
 
+/**
+ * @brief Delay for the requested number of milliseconds.
+ * @param milliseconds Duration to wait in milliseconds.
+ * @return None.
+ */
 void spi_delay_ms(uint32_t milliseconds)
 {
     struct timespec req = {
