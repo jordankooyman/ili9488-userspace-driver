@@ -72,7 +72,7 @@ The active Linux wiring used by this project:
 - D/C: BCM 25
 - CS: SPI0 CE0 (hardware-managed by `spidev`)
 
-Full pin mapping is documented in [docs/wiring.md](docs/wiring.md).
+Full pin mapping is documented in [docs/wiring.md](docs/wiring.md), and can be changed by modifying [include/config.h](include/config.h)
 
 ## Build
 
